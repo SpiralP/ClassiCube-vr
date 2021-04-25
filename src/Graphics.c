@@ -14,6 +14,11 @@
 #include "Options.h"
 #include "Bitmap.h"
 
+#include <stdint.h>
+#include <openvr_capi.h>
+#include <assert.h>
+#include <stdio.h>
+
 /* Avoid pointless includes on Windows */
 #define WIN32_LEAN_AND_MEAN
 #define NOSERVICE
@@ -1106,7 +1111,7 @@ void Gfx_OnWindowResize(void) {
 #ifdef CC_BUILD_GL
 #if defined CC_BUILD_WIN
 #include <windows.h>
-#include <GL/gl.h>
+#include <GL/glew.h>
 #elif defined CC_BUILD_IOS
 #include <OpenGLES/ES2/gl.h>
 #elif defined CC_BUILD_MACOS
@@ -1571,10 +1576,86 @@ void Gfx_SetFpsLimit(cc_bool vsync, float minFrameMs) {
 	if (Gfx.Created) GL_UpdateVsync();
 }
 
-void Gfx_BeginFrame(void) { frameStart = Stopwatch_Measure(); }
-void Gfx_Clear(void) { glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); }
+
+typedef struct FramebufferDesc
+{
+	GLuint m_nDepthBufferId;
+	GLuint m_nRenderTextureId;
+	GLuint m_nRenderFramebufferId;
+	GLuint m_nResolveTextureId;
+	GLuint m_nResolveFramebufferId;
+};
+struct FramebufferDesc leftEyeDesc;
+struct FramebufferDesc rightEyeDesc;
+
+struct VR_IVRSystem_FnTable* system;
+struct VR_IVRCompositor_FnTable* compositor;
+
+TrackedDevicePose_t m_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
+
+
+cc_bool CreateFrameBuffer( int nWidth, int nHeight, struct FramebufferDesc *framebufferDesc )
+{
+	glGenFramebuffers(1, &framebufferDesc->m_nRenderFramebufferId );
+	glBindFramebuffer(GL_FRAMEBUFFER, framebufferDesc->m_nRenderFramebufferId);
+
+	glGenRenderbuffers(1, &framebufferDesc->m_nDepthBufferId);
+	glBindRenderbuffer(GL_RENDERBUFFER, framebufferDesc->m_nDepthBufferId);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, nWidth, nHeight );
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,	framebufferDesc->m_nDepthBufferId );
+
+	glGenTextures(1, &framebufferDesc->m_nRenderTextureId );
+	glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, framebufferDesc->m_nRenderTextureId );
+	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, nWidth, nHeight, true);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, framebufferDesc->m_nRenderTextureId, 0);
+
+	glGenFramebuffers(1, &framebufferDesc->m_nResolveFramebufferId );
+	glBindFramebuffer(GL_FRAMEBUFFER, framebufferDesc->m_nResolveFramebufferId);
+
+	glGenTextures(1, &framebufferDesc->m_nResolveTextureId );
+	glBindTexture(GL_TEXTURE_2D, framebufferDesc->m_nResolveTextureId );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, nWidth, nHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebufferDesc->m_nResolveTextureId, 0);
+
+	// check FBO status
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE)
+	{
+		Logger_Abort("?!");
+		return false;
+	}
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
+	return true;
+}
+
+void Gfx_BeginFrame(void) {
+	frameStart = Stopwatch_Measure();
+	glBindFramebuffer( GL_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId );
+}
+void Gfx_Clear(void) {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
 void Gfx_EndFrame(void) { 
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+	Texture_t leftEyeTexture = { (void*)(uintptr_t)leftEyeDesc.m_nResolveTextureId, ETextureType_TextureType_OpenGL, EColorSpace_ColorSpace_Gamma };
+	EVRCompositorError error;
+
+	error = compositor->Submit(EVREye_Eye_Left, &leftEyeTexture, NULL, EVRSubmitFlags_Submit_Default);
+	error = compositor->Submit(EVREye_Eye_Right, &leftEyeTexture, NULL, EVRSubmitFlags_Submit_Default);
+
+	Platform_Log1("%i", &error);
+
+
 	if (!GLContext_SwapBuffers()) Gfx_LoseContext("GLContext lost");
+
+	compositor->WaitGetPoses(m_rTrackedDevicePose, k_unMaxTrackedDeviceCount, NULL, 0);
+
 	if (gfx_minFrameMs) LimitFPS();
 }
 
@@ -2241,6 +2322,31 @@ static void GL_CheckSupport(void) {
 static void OnContextLost(void* obj)      { Gfx_FreeState(); }
 static void OnContextRecreated(void* obj) { Gfx_RestoreState(); }
 
+intptr_t VR_InitInternal( EVRInitError *peError, EVRApplicationType eType );
+void VR_ShutdownInternal();
+bool VR_IsHmdPresent();
+intptr_t VR_GetGenericInterface( const char *pchInterfaceVersion, EVRInitError *peError );
+bool VR_IsRuntimeInstalled();
+const char * VR_GetVRInitErrorAsSymbol( EVRInitError error );
+const char * VR_GetVRInitErrorAsEnglishDescription( EVRInitError error );
+
+uint32_t VR_GetInitToken();
+bool VR_GetRuntimePath( char *pchPathBuffer, uint32_t unBufferSize, uint32_t *punRequiredBufferSize );
+uint32_t VR_InitInternal2( EVRInitError *peError, EVRApplicationType eApplicationType, const char *pStartupInfo );
+bool VR_IsInterfaceVersionValid( const char *pchInterfaceVersion );
+
+
+
+// LiquidVR
+// VRControlPanel
+// VRHeadsetView
+// VRPaths
+// VRVirtualDisplay
+// VR_GetStringForHmdError
+
+
+#define FN_TABLE(x) "FnTable:"#x
+
 static void OnInit(void) {
 	Event_Register_(&GfxEvents.ContextLost,      NULL, OnContextLost);
 	Event_Register_(&GfxEvents.ContextRecreated, NULL, OnContextRecreated);
@@ -2248,6 +2354,60 @@ static void OnInit(void) {
 	Gfx.Mipmaps = Options_GetBool(OPT_MIPMAPS, false);
 	if (Gfx.LostContext) return;
 	OnContextRecreated(NULL);
+
+
+
+	glewExperimental = GL_TRUE;
+	GLenum nGlewError = glewInit();
+	if (nGlewError != GLEW_OK)
+	{
+		printf("%s - Error initializing GLEW! %s\n", __FUNCTION__, glewGetErrorString(nGlewError));
+		Logger_Abort("GLEW");
+		return;
+	}
+	glGetError(); // to clear the error caused deep in GLEW
+
+
+	EVRInitError error = EVRInitError_VRInitError_None;
+	VR_InitInternal(&error, EVRApplicationType_VRApplication_Scene);
+	if (error != EVRInitError_VRInitError_None) {
+		Logger_Abort("error");
+		return;
+	}
+
+    if (!VR_IsInterfaceVersionValid(IVRSystem_Version)) {
+        VR_ShutdownInternal();
+        Logger_Abort("!VR_IsInterfaceVersionValid");
+		return;
+    }
+
+
+
+    
+	
+    error = EVRInitError_VRInitError_None;
+
+	char systemInterfaceName[256] = { 0 };
+
+	sprintf(systemInterfaceName, "FnTable:%s", IVRSystem_Version);
+    system = VR_GetGenericInterface(systemInterfaceName, &error);
+    if (error != EVRInitError_VRInitError_None) {
+		Logger_Abort("VR_GetGenericInterface System");
+	}
+
+	sprintf(systemInterfaceName, "FnTable:%s", IVRCompositor_Version);
+	compositor = VR_GetGenericInterface(systemInterfaceName, &error);
+	if (error != EVRInitError_VRInitError_None) {
+		Logger_Abort("VR_GetGenericInterface Compositor");
+	}
+
+
+	uint32_t m_nRenderWidth;
+	uint32_t m_nRenderHeight;
+	system->GetRecommendedRenderTargetSize( &m_nRenderWidth, &m_nRenderHeight );
+
+	CreateFrameBuffer( m_nRenderWidth, m_nRenderHeight, &leftEyeDesc );
+	CreateFrameBuffer( m_nRenderWidth, m_nRenderHeight, &rightEyeDesc );
 }
 
 struct IGameComponent Gfx_Component = {

@@ -1,0 +1,1 @@
+download and extract binaries from http://glew.sourceforge.net/ to this folder
