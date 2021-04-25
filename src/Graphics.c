@@ -1593,6 +1593,8 @@ struct VR_IVRCompositor_FnTable* compositor;
 
 TrackedDevicePose_t m_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
 
+uint32_t m_nRenderWidth;
+uint32_t m_nRenderHeight;
 
 cc_bool CreateFrameBuffer( int nWidth, int nHeight, struct FramebufferDesc *framebufferDesc )
 {
@@ -1634,27 +1636,52 @@ cc_bool CreateFrameBuffer( int nWidth, int nHeight, struct FramebufferDesc *fram
 
 void Gfx_BeginFrame(void) {
 	frameStart = Stopwatch_Measure();
-	glBindFramebuffer( GL_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId );
+
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glEnable(GL_MULTISAMPLE);
+
+	// Left Eye
+	glBindFramebuffer(GL_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId);
+	glViewport(0, 0, m_nRenderWidth, m_nRenderHeight);
 }
 void Gfx_Clear(void) {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 void Gfx_EndFrame(void) { 
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+	glDisable(GL_MULTISAMPLE);
 
-	Texture_t leftEyeTexture = { (void*)(uintptr_t)leftEyeDesc.m_nResolveTextureId, ETextureType_TextureType_OpenGL, EColorSpace_ColorSpace_Gamma };
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, leftEyeDesc.m_nResolveFramebufferId);
+
+	glBlitFramebuffer(0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth, m_nRenderHeight,
+		GL_COLOR_BUFFER_BIT,
+		GL_LINEAR);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+	glEnable(GL_MULTISAMPLE);
+
+
 	EVRCompositorError error;
+	Texture_t leftEyeTexture = { (void*)(uintptr_t)leftEyeDesc.m_nResolveTextureId, ETextureType_TextureType_OpenGL, EColorSpace_ColorSpace_Gamma };
 
 	error = compositor->Submit(EVREye_Eye_Left, &leftEyeTexture, NULL, EVRSubmitFlags_Submit_Default);
-	error = compositor->Submit(EVREye_Eye_Right, &leftEyeTexture, NULL, EVRSubmitFlags_Submit_Default);
+	Platform_Log1("%i", &error);
 
+	error = compositor->Submit(EVREye_Eye_Right, &leftEyeTexture, NULL, EVRSubmitFlags_Submit_Default);
 	Platform_Log1("%i", &error);
 
 
 	if (!GLContext_SwapBuffers()) Gfx_LoseContext("GLContext lost");
 
-	compositor->WaitGetPoses(m_rTrackedDevicePose, k_unMaxTrackedDeviceCount, NULL, 0);
+	error = compositor->WaitGetPoses(m_rTrackedDevicePose, k_unMaxTrackedDeviceCount, NULL, 0);
+	Platform_Log1("%i", &error);
+
 
 	if (gfx_minFrameMs) LimitFPS();
 }
@@ -2344,19 +2371,7 @@ bool VR_IsInterfaceVersionValid( const char *pchInterfaceVersion );
 // VRVirtualDisplay
 // VR_GetStringForHmdError
 
-
-#define FN_TABLE(x) "FnTable:"#x
-
-static void OnInit(void) {
-	Event_Register_(&GfxEvents.ContextLost,      NULL, OnContextLost);
-	Event_Register_(&GfxEvents.ContextRecreated, NULL, OnContextRecreated);
-
-	Gfx.Mipmaps = Options_GetBool(OPT_MIPMAPS, false);
-	if (Gfx.LostContext) return;
-	OnContextRecreated(NULL);
-
-
-
+static void SetupVR() {
 	glewExperimental = GL_TRUE;
 	GLenum nGlewError = glewInit();
 	if (nGlewError != GLEW_OK)
@@ -2380,10 +2395,6 @@ static void OnInit(void) {
         Logger_Abort("!VR_IsInterfaceVersionValid");
 		return;
     }
-
-
-
-    
 	
     error = EVRInitError_VRInitError_None;
 
@@ -2395,19 +2406,52 @@ static void OnInit(void) {
 		Logger_Abort("VR_GetGenericInterface System");
 	}
 
+
+	cc_string title; char titleBuffer[STRING_SIZE];
+	String_InitArray(title, titleBuffer);
+
+	char name[256+1] = { 0 };
+	uint32_t nameLen = system->GetStringTrackedDeviceProperty(
+		k_unTrackedDeviceIndex_Hmd,
+		ETrackedDeviceProperty_Prop_TrackingSystemName_String,
+		name,
+		256,
+		NULL
+	);
+	char serial[256+1] = { 0 };
+	uint32_t serialLen = system->GetStringTrackedDeviceProperty(
+		k_unTrackedDeviceIndex_Hmd,
+		ETrackedDeviceProperty_Prop_SerialNumber_String,
+		serial,
+		256,
+		NULL
+	);
+	String_Format4(&title, "%c (%s) - %c (%c)", GAME_APP_TITLE, &Game_Username, &name, &serial);
+	Window_SetTitle(&title);
+
+
 	sprintf(systemInterfaceName, "FnTable:%s", IVRCompositor_Version);
 	compositor = VR_GetGenericInterface(systemInterfaceName, &error);
 	if (error != EVRInitError_VRInitError_None) {
 		Logger_Abort("VR_GetGenericInterface Compositor");
 	}
 
-
-	uint32_t m_nRenderWidth;
-	uint32_t m_nRenderHeight;
 	system->GetRecommendedRenderTargetSize( &m_nRenderWidth, &m_nRenderHeight );
-
 	CreateFrameBuffer( m_nRenderWidth, m_nRenderHeight, &leftEyeDesc );
 	CreateFrameBuffer( m_nRenderWidth, m_nRenderHeight, &rightEyeDesc );
+}
+
+
+static void OnInit(void) {
+	Event_Register_(&GfxEvents.ContextLost,      NULL, OnContextLost);
+	Event_Register_(&GfxEvents.ContextRecreated, NULL, OnContextRecreated);
+
+	Gfx.Mipmaps = Options_GetBool(OPT_MIPMAPS, false);
+	if (Gfx.LostContext) return;
+	OnContextRecreated(NULL);
+
+
+	SetupVR();
 }
 
 struct IGameComponent Gfx_Component = {
