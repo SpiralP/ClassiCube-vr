@@ -102,13 +102,15 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <TreatSpecificWarningsAsErrors>4716;4013</TreatSpecificWarningsAsErrors>
+      <AdditionalIncludeDirectories>.\cglm\include;.\glew\include;.\openvr\headers</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <MinimumRequiredVersion>5.02</MinimumRequiredVersion>
       <EntryPointSymbol>main</EntryPointSymbol>
-      <AdditionalDependencies>d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;dbghelp.lib;Winmm.lib;crypt32.lib;ucrtd.lib;vcruntimed.lib;msvcrtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;dbghelp.lib;Winmm.lib;crypt32.lib;ucrtd.lib;vcruntimed.lib;msvcrtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>.\glew\lib\Release\Win32;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -124,10 +126,10 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <TreatSpecificWarningsAsErrors>4716;4013</TreatSpecificWarningsAsErrors>
-      <AdditionalIncludeDirectories>.\glew\include;.\openvr\headers</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\cglm\include;.\glew\include;.\openvr\headers</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>main</EntryPointSymbol>
       <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;ucrtd.lib;vcruntimed.lib;msvcrtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -152,6 +154,7 @@
       </AdditionalOptions>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
       <TreatSpecificWarningsAsErrors>4716;4013</TreatSpecificWarningsAsErrors>
+      <AdditionalIncludeDirectories>.\cglm\include;.\glew\include;.\openvr\headers</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -161,7 +164,8 @@
       <MinimumRequiredVersion>5.02</MinimumRequiredVersion>
       <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
       <EntryPointSymbol>main</EntryPointSymbol>
-      <AdditionalDependencies>d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;libucrt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;libucrt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>.\glew\lib\Release\Win32;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -182,6 +186,7 @@
       </AdditionalOptions>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
       <TreatSpecificWarningsAsErrors>4716;4013</TreatSpecificWarningsAsErrors>
+      <AdditionalIncludeDirectories>.\cglm\include;.\glew\include;.\openvr\headers</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -189,7 +194,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>main</EntryPointSymbol>
-      <AdditionalDependencies>d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;libucrt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;libucrt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>.\glew\lib\Release\x64;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -315,6 +321,7 @@
     <ClCompile Include="Logger.c" />
     <ClCompile Include="Window.c" />
     <ClCompile Include="World.c" />
+    <ClCompile Include="VR.c" />
     <ClCompile Include="_autofit.c" />
     <ClCompile Include="_cff.c" />
     <ClCompile Include="_ftbase.c" />

@@ -536,5 +536,8 @@
     <ClCompile Include="Animations.c">
       <Filter>Source Files\TexturePack</Filter>
     </ClCompile>
+    <ClCompile Include="VR.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

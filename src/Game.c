@@ -36,6 +36,7 @@
 #include "Protocol.h"
 #include "Picking.h"
 #include "Animations.h"
+#include "VR.h"
 #ifdef CC_BUILD_WEB
 #include <emscripten.h>
 #endif
@@ -550,6 +551,30 @@ void Game_TakeScreenshot(void) {
 #endif
 }
 
+void RenderScene(Hmd_Eye nEye, double delta, float t) {
+	Gfx_Clear();	
+	Gfx_SetDepthTest(true);
+
+	Camera.CurrentPos = Camera.Active->GetPosition(t);
+	UpdateViewMatrix();
+
+	Gfx.Projection = VR_GetProjection(nEye);
+	Gfx_LoadMatrix(MATRIX_PROJECTION, &Gfx.Projection);
+	Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
+
+	if (!Gui_GetBlocksWorld()) {
+		Game_Render3D(delta, t);
+	} else {
+		RayTracer_SetInvalid(&Game_SelectedPos);
+	}
+
+	Gfx_Begin2D(Game.Width, Game.Height);
+	Gui_RenderGui(delta);
+	Gfx_End2D();
+
+	if (Game_ScreenshotRequested) Game_TakeScreenshot();
+}
+
 static void Game_RenderFrame(double delta) {
 	struct ScheduledTask entTask;
 	float t;
@@ -585,24 +610,10 @@ static void Game_RenderFrame(double delta) {
 	t = (float)(entTask.accumulator / entTask.interval);
 	LocalPlayer_SetInterpPosition(t);
 
-	Gfx_Clear();
-	Camera.CurrentPos = Camera.Active->GetPosition(t);
-	UpdateViewMatrix();
 
-	Gfx_LoadMatrix(MATRIX_PROJECTION, &Gfx.Projection);
-	Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
+	VR_RenderStereoTargets(RenderScene, delta, t);
 
-	if (!Gui_GetBlocksWorld()) {
-		Game_Render3D(delta, t);
-	} else {
-		RayTracer_SetInvalid(&Game_SelectedPos);
-	}
 
-	Gfx_Begin2D(Game.Width, Game.Height);
-	Gui_RenderGui(delta);
-	Gfx_End2D();
-
-	if (Game_ScreenshotRequested) Game_TakeScreenshot();
 	Gfx_EndFrame();
 }
 
