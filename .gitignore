@@ -209,3 +209,5 @@ UpgradeLog*.htm
 FakesAssemblies/
 
 src/glew
+.vscode/settings.json
+src/.vs
