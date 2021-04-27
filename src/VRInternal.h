@@ -40,8 +40,6 @@ struct FramebufferDesc {
   GLuint m_nDepthBufferId;
   GLuint m_nRenderTextureId;
   GLuint m_nRenderFramebufferId;
-  GLuint m_nResolveTextureId;
-  GLuint m_nResolveFramebufferId;
 };
 struct FramebufferDesc leftEyeDesc;
 struct FramebufferDesc rightEyeDesc;
@@ -63,41 +61,31 @@ mat4s m_mat4eyePosRight;
 
 static void CreateFrameBuffer(int nWidth,
                               int nHeight,
-                              struct FramebufferDesc* framebufferDesc) {
-  glGenFramebuffers(1, &framebufferDesc->m_nRenderFramebufferId);
-  glBindFramebuffer(GL_FRAMEBUFFER, framebufferDesc->m_nRenderFramebufferId);
+                              struct FramebufferDesc* desc) {
+  glGenFramebuffers(1, &desc->m_nRenderFramebufferId);
+  glBindFramebuffer(GL_FRAMEBUFFER, desc->m_nRenderFramebufferId);
 
-  glGenRenderbuffers(1, &framebufferDesc->m_nDepthBufferId);
-  glBindRenderbuffer(GL_RENDERBUFFER, framebufferDesc->m_nDepthBufferId);
-  glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT,
-                                   nWidth, nHeight);
+  glGenRenderbuffers(1, &desc->m_nDepthBufferId);
+  glBindRenderbuffer(GL_RENDERBUFFER, desc->m_nDepthBufferId);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, nWidth, nHeight);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                            GL_RENDERBUFFER, framebufferDesc->m_nDepthBufferId);
+                            GL_RENDERBUFFER, desc->m_nDepthBufferId);
 
-  glGenTextures(1, &framebufferDesc->m_nRenderTextureId);
-  glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, framebufferDesc->m_nRenderTextureId);
-  glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, nWidth,
-                          nHeight, true);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                         GL_TEXTURE_2D_MULTISAMPLE,
-                         framebufferDesc->m_nRenderTextureId, 0);
-
-  glGenFramebuffers(1, &framebufferDesc->m_nResolveFramebufferId);
-  glBindFramebuffer(GL_FRAMEBUFFER, framebufferDesc->m_nResolveFramebufferId);
-
-  glGenTextures(1, &framebufferDesc->m_nResolveTextureId);
-  glBindTexture(GL_TEXTURE_2D, framebufferDesc->m_nResolveTextureId);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+  glGenTextures(1, &desc->m_nRenderTextureId);
+  glBindTexture(GL_TEXTURE_2D, desc->m_nRenderTextureId);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, nWidth, nHeight, 0, GL_RGBA,
                GL_UNSIGNED_BYTE, NULL);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         framebufferDesc->m_nResolveTextureId, 0);
+                         desc->m_nRenderTextureId, 0);
 
   // check FBO status
   GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   if (status != GL_FRAMEBUFFER_COMPLETE) {
-    Logger_Abort("glCheckFramebufferStatus != GL_FRAMEBUFFER_COMPLETE");
+    Logger_Abort2(status,
+                  "glCheckFramebufferStatus != GL_FRAMEBUFFER_COMPLETE");
     return;
   }
 
@@ -163,72 +151,4 @@ static void SetupStereoRenderTargets() {
   vr_system->GetRecommendedRenderTargetSize(&m_nRenderWidth, &m_nRenderHeight);
   CreateFrameBuffer(m_nRenderWidth, m_nRenderHeight, &leftEyeDesc);
   CreateFrameBuffer(m_nRenderWidth, m_nRenderHeight, &rightEyeDesc);
-}
-
-GLuint m_glSceneVertBuffer;
-GLuint m_unSceneVAO;
-GLuint m_unCompanionWindowVAO;
-GLuint m_glCompanionWindowIDVertBuffer;
-GLuint m_glCompanionWindowIDIndexBuffer;
-unsigned int m_uiCompanionWindowIndexSize;
-
-struct Vector2 {
-  float x;
-  float y;
-};
-
-struct VertexDataWindow {
-  struct Vector2 position;
-  struct Vector2 texCoord;
-};
-
-static void SetupCompanionWindow() {
-  struct VertexDataWindow vVerts[8] = {
-      // left eye verts
-      {{-1, -1}, {0, 1}},
-      {{0, -1}, {1, 1}},
-      {{-1, 1}, {0, 0}},
-      {{0, 1}, {1, 0}},
-
-      // right eye verts
-      {{0, -1}, {0, 1}},
-      {{1, -1}, {1, 1}},
-      {{0, 1}, {0, 0}},
-      {{1, 1}, {1, 0}},
-  };
-
-  GLushort vIndices[] = {0, 1, 3, 0, 3, 2, 4, 5, 7, 4, 7, 6};
-  m_uiCompanionWindowIndexSize = _countof(vIndices);
-
-  glGenVertexArrays(1, &m_unCompanionWindowVAO);
-  glBindVertexArray(m_unCompanionWindowVAO);
-
-  glGenBuffers(1, &m_glCompanionWindowIDVertBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_glCompanionWindowIDVertBuffer);
-  glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(struct VertexDataWindow), &vVerts[0],
-               GL_STATIC_DRAW);
-
-  glGenBuffers(1, &m_glCompanionWindowIDIndexBuffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_glCompanionWindowIDIndexBuffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-               m_uiCompanionWindowIndexSize * sizeof(GLushort), &vIndices[0],
-               GL_STATIC_DRAW);
-
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
-                        sizeof(struct VertexDataWindow),
-                        (void*)offsetof(struct VertexDataWindow, position));
-
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
-                        sizeof(struct VertexDataWindow),
-                        (void*)offsetof(struct VertexDataWindow, texCoord));
-
-  glBindVertexArray(0);
-
-  glDisableVertexAttribArray(0);
-  glDisableVertexAttribArray(1);
-
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }

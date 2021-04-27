@@ -8,6 +8,7 @@
 
 #include "Constants.h"
 #include "Game.h"
+#include "Graphics.h"
 #include "Logger.h"
 #include "Platform.h"
 #include "String.h"
@@ -102,37 +103,40 @@ void VR_Setup() {
   // SetupScene();
   SetupCameras();
   SetupStereoRenderTargets();
-  SetupCompanionWindow();
 }
 
 void RenderCompanionWindow() {
-  glDisable(GL_DEPTH_TEST);
+  Gfx_Begin2D(Game.Width, Game.Height);
   glViewport(0, 0, Game.Width, Game.Height);
-
-  glBindVertexArray(m_unCompanionWindowVAO);
-  // glUseProgram(m_unCompanionWindowProgramID);
+  Gfx_SetTexturing(true);
+  struct Texture tex;
 
   // render left eye (first half of index array )
-  glBindTexture(GL_TEXTURE_2D, leftEyeDesc.m_nResolveTextureId);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glDrawElements(GL_TRIANGLES, m_uiCompanionWindowIndexSize / 2,
-                 GL_UNSIGNED_SHORT, 0);
+  tex.ID = leftEyeDesc.m_nRenderTextureId;
+  tex.X = 0;
+  tex.Y = 0;
+  tex.Width = Game.Width / 2;
+  tex.Height = Game.Height;
+  tex.uv.U1 = 0;
+  tex.uv.U2 = 1;
+  tex.uv.V1 = 1;
+  tex.uv.V2 = 0;
+  Texture_Render(&tex);
 
   // render right eye (second half of index array )
-  glBindTexture(GL_TEXTURE_2D, rightEyeDesc.m_nResolveTextureId);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glDrawElements(GL_TRIANGLES, m_uiCompanionWindowIndexSize / 2,
-                 GL_UNSIGNED_SHORT,
-                 (const void*)(uintptr_t)(m_uiCompanionWindowIndexSize));
+  tex.ID = rightEyeDesc.m_nRenderTextureId;
+  tex.X = Game.Width / 2;
+  tex.Y = 0;
+  tex.Width = Game.Width / 2;
+  tex.Height = Game.Height;
+  tex.uv.U1 = 0;
+  tex.uv.U2 = 1;
+  tex.uv.V1 = 1;
+  tex.uv.V2 = 0;
+  Texture_Render(&tex);
 
-  glBindVertexArray(0);
-  // glUseProgram(0);
+  Gfx_SetTexturing(false);
+  Gfx_End2D();
 }
 
 void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,
@@ -140,43 +144,17 @@ void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,
                                                 float t),
                             double delta,
                             float t) {
-  glEnable(GL_MULTISAMPLE);
-
   // Left Eye
   glBindFramebuffer(GL_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId);
   glViewport(0, 0, m_nRenderWidth, m_nRenderHeight);
   RenderScene(EVREye_Eye_Left, delta, t);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-  glDisable(GL_MULTISAMPLE);
-
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId);
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, leftEyeDesc.m_nResolveFramebufferId);
-
-  glBlitFramebuffer(0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth,
-                    m_nRenderHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-  glEnable(GL_MULTISAMPLE);
-
   // Right Eye
   glBindFramebuffer(GL_FRAMEBUFFER, rightEyeDesc.m_nRenderFramebufferId);
   glViewport(0, 0, m_nRenderWidth, m_nRenderHeight);
   RenderScene(EVREye_Eye_Right, delta, t);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-  glDisable(GL_MULTISAMPLE);
-
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, rightEyeDesc.m_nRenderFramebufferId);
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rightEyeDesc.m_nResolveFramebufferId);
-
-  glBlitFramebuffer(0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth,
-                    m_nRenderHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
 void VR_BeginFrame() {
@@ -190,7 +168,7 @@ void VR_EndFrame() {
 
   // after RenderCompanionWindow();
   EVRCompositorError error;
-  Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEyeDesc.m_nResolveTextureId,
+  Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEyeDesc.m_nRenderTextureId,
                               ETextureType_TextureType_OpenGL,
                               EColorSpace_ColorSpace_Gamma};
   error = vr_compositor->Submit(EVREye_Eye_Left, &leftEyeTexture, NULL,
@@ -203,7 +181,7 @@ void VR_EndFrame() {
   }
 
   Texture_t rightEyeTexture = {
-      (void*)(uintptr_t)rightEyeDesc.m_nResolveTextureId,
+      (void*)(uintptr_t)rightEyeDesc.m_nRenderTextureId,
       ETextureType_TextureType_OpenGL, EColorSpace_ColorSpace_Gamma};
   error = vr_compositor->Submit(EVREye_Eye_Right, &rightEyeTexture, NULL,
                                 EVRSubmitFlags_Submit_Default);
