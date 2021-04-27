@@ -6,40 +6,27 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// LiquidVR
-// VRControlPanel
-// VRHeadsetView
-// VRPaths
-// VRVirtualDisplay
-// VR_GetStringForHmdError
-
-intptr_t VR_InitInternal(EVRInitError* peError, EVRApplicationType eType);
-void VR_ShutdownInternal();
-bool VR_IsHmdPresent();
-intptr_t VR_GetGenericInterface(const char* pchInterfaceVersion,
-                                EVRInitError* peError);
-bool VR_IsRuntimeInstalled();
-const char* VR_GetVRInitErrorAsSymbol(EVRInitError error);
-const char* VR_GetVRInitErrorAsEnglishDescription(EVRInitError error);
-
-uint32_t VR_GetInitToken();
-bool VR_GetRuntimePath(char* pchPathBuffer,
-                       uint32_t unBufferSize,
-                       uint32_t* punRequiredBufferSize);
-uint32_t VR_InitInternal2(EVRInitError* peError,
-                          EVRApplicationType eApplicationType,
-                          const char* pStartupInfo);
-bool VR_IsInterfaceVersionValid(const char* pchInterfaceVersion);
-
+/* sets up connection to steamvr, call once on app init */
 void VR_Setup();
+
+/* call before rendering frame */
 void VR_BeginFrame();
+
+/* will call `RenderScene` 2 times for left and right eye, call in place of
+ * previous scene-render logic */
 void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,
                                                 double delta,
                                                 float t),
                             double delta,
                             float t);
+
+/* submits both eye textures to steamvr, call after frame rendered */
 void VR_EndFrame();
+
+/* updates all device poses, call after frame rendered */
 void VR_UpdateHMDMatrixPose();
+
+/* gets projection matrix for specified eye */
 struct Matrix VR_GetProjection(Hmd_Eye nEye);
 
 #endif
