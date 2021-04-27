@@ -1660,19 +1660,6 @@ cc_bool Platform_DescribeError(cc_result res, cc_string* dst) {
 	return Platform_DescribeErrorExt(res, dst, NULL);
 }
 #elif defined CC_BUILD_POSIX
-int Platform_EncodeUtf8(void* data, const cc_string* src) {
-	cc_uint8* dst = (cc_uint8*)data;
-	cc_uint8* cur;
-	int i, len = 0;
-	if (src->length > FILENAME_SIZE) Logger_Abort("String too long to expand");
-
-	for (i = 0; i < src->length; i++) {
-		cur = dst + len;
-		len += Convert_CP437ToUtf8(src->buffer[i], cur);
-	}
-	dst[len] = '\0';
-	return len;
-}
 
 static void Platform_InitPosix(void) {
 	signal(SIGCHLD, SIG_IGN);
@@ -1769,6 +1756,19 @@ void Platform_Init(void) { Platform_InitPosix(); }
 #endif
 #endif /* CC_BUILD_POSIX */
 
+int Platform_EncodeUtf8(void* data, const cc_string* src) {
+	cc_uint8* dst = (cc_uint8*)data;
+	cc_uint8* cur;
+	int i, len = 0;
+	if (src->length > FILENAME_SIZE) Logger_Abort("String too long to expand");
+
+	for (i = 0; i < src->length; i++) {
+		cur = dst + len;
+		len += Convert_CP437ToUtf8(src->buffer[i], cur);
+	}
+	dst[len] = '\0';
+	return len;
+}
 
 /*########################################################################################################################*
 *-------------------------------------------------------Encryption--------------------------------------------------------*

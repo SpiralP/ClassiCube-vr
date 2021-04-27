@@ -125,7 +125,7 @@ static void InitGraphicsMode(struct GraphicsMode* m) {
 *-------------------------------------------------------SDL window--------------------------------------------------------*
 *#########################################################################################################################*/
 #if defined CC_BUILD_SDL
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include "Graphics.h"
 static SDL_Window* win_handle;
 
