@@ -1585,9 +1585,6 @@ void Gfx_EndFrame(void) {
 
 	if (!GLContext_SwapBuffers()) Gfx_LoseContext("GLContext lost");
 
-	glClearColor( 0, 0, 0, 1 );
-	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
 	VR_UpdateHMDMatrixPose();
 
 	if (gfx_minFrameMs) LimitFPS();
