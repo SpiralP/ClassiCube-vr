@@ -19,8 +19,8 @@
 #define GAME_APP_NAME  "ClassiCube 1.2.5 android alpha"
 #define GAME_APP_TITLE "ClassiCube 1.2.5 android alpha"
 #else
-#define GAME_APP_NAME  "ClassiCube 1.2.5"
-#define GAME_APP_TITLE "ClassiCube 1.2.5"
+#define GAME_APP_NAME  "ClassiCube VR 1.2.5"
+#define GAME_APP_TITLE "ClassiCube VR 1.2.5"
 #endif
 
 /* Max number of characters strings can have. */
