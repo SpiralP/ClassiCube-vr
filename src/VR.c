@@ -142,16 +142,17 @@ static mat4s GetHMDMatrixPoseEye(Hmd_Eye nEye) {
 }
 
 static mat4s GetCurrentViewProjectionMatrix(Hmd_Eye nEye) {
-  mat4s matMVP;
+  // GetProjectionMatrix * GetEyeToHeadTransform *
+  // TrackedDevicePose.mDeviceToAbsoluteTracking
   if (nEye == EVREye_Eye_Left) {
-    matMVP = glms_mat4_mul(
-        glms_mat4_mul(m_mat4ProjectionLeft, m_mat4eyePosLeft), m_mat4HMDPose);
+    return glms_mat4_mul(glms_mat4_mul(m_mat4ProjectionLeft, m_mat4eyePosLeft),
+                         m_mat4HMDPose);
   } else if (nEye == EVREye_Eye_Right) {
-    matMVP = glms_mat4_mul(
+    return glms_mat4_mul(
         glms_mat4_mul(m_mat4ProjectionRight, m_mat4eyePosRight), m_mat4HMDPose);
+  } else {
+      return glms_mat4_identity();
   }
-
-  return matMVP;
 }
 
 static void SetupCameras() {
@@ -264,7 +265,8 @@ void VR_Setup() {
   char systemInterfaceName[256] = {0};
 
   sprintf(systemInterfaceName, "FnTable:%s", IVRSystem_Version);
-  vr_system = VR_GetGenericInterface(systemInterfaceName, &error);
+  vr_system = (struct VR_IVRSystem_FnTable*)VR_GetGenericInterface(
+      systemInterfaceName, &error);
   if (error != EVRInitError_VRInitError_None) {
     Logger_Abort("VR_GetGenericInterface System");
   }
@@ -286,7 +288,8 @@ void VR_Setup() {
   Window_SetTitle(&title);
 
   sprintf(systemInterfaceName, "FnTable:%s", IVRCompositor_Version);
-  vr_compositor = VR_GetGenericInterface(systemInterfaceName, &error);
+  vr_compositor = (struct VR_IVRCompositor_FnTable*)VR_GetGenericInterface(
+      systemInterfaceName, &error);
   if (error != EVRInitError_VRInitError_None) {
     Logger_Abort("VR_GetGenericInterface Compositor");
     return;
