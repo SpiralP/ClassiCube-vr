@@ -32,8 +32,8 @@ TrackedDevicePose_t m_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
 uint32_t m_nRenderWidth;
 uint32_t m_nRenderHeight;
 
-float m_fNearClip = 0.1f;
-float m_fFarClip = 30.0f;
+float m_fNearClip = 0.01f;
+float m_fFarClip = 100000.0f;
 
 mat4s m_mat4ProjectionLeft;
 mat4s m_mat4ProjectionRight;
@@ -76,7 +76,7 @@ void CreateFrameBuffer(int nWidth,
   // check FBO status
   GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   if (status != GL_FRAMEBUFFER_COMPLETE) {
-    Logger_Abort("?!");
+    Logger_Abort("glCheckFramebufferStatus != GL_FRAMEBUFFER_COMPLETE");
     return;
   }
 
@@ -100,7 +100,7 @@ void VR_UpdateHMDMatrixPose() {
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
     Platform_Log1("WaitGetPoses %i", &error);
-    Logger_Abort("Submit");
+    Logger_Abort("WaitGetPoses");
     return;
   }
 
@@ -239,9 +239,9 @@ void VR_Setup() {
   glewExperimental = GL_TRUE;
   GLenum nGlewError = glewInit();
   if (nGlewError != GLEW_OK) {
-    printf("%s - Error initializing GLEW! %s\n", __FUNCTION__,
-           glewGetErrorString(nGlewError));
-    Logger_Abort("GLEW");
+    Platform_Log1("Error initializing GLEW! %c",
+                  glewGetErrorString(nGlewError));
+    Logger_Abort("glewInit != GLEW_OK");
     return;
   }
   glGetError();  // to clear the error caused deep in GLEW
@@ -249,7 +249,7 @@ void VR_Setup() {
   EVRInitError error = EVRInitError_VRInitError_None;
   VR_InitInternal(&error, EVRApplicationType_VRApplication_Scene);
   if (error != EVRInitError_VRInitError_None) {
-    Logger_Abort("error");
+    Logger_Abort("VR_InitInternal");
     return;
   }
 
@@ -392,7 +392,7 @@ void VR_EndFrame() {
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
     Platform_Log1("Submit EVREye_Eye_Left %i", &error);
-    Logger_Abort("Submit");
+    Logger_Abort("Submit EVREye_Eye_Left");
     return;
   }
 
@@ -404,7 +404,7 @@ void VR_EndFrame() {
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
     Platform_Log1("Submit EVREye_Eye_Right %i", &error);
-    Logger_Abort("Submit");
+    Logger_Abort("Submit EVREye_Eye_Right");
     return;
   }
 }
