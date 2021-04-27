@@ -15,8 +15,6 @@
 #include "Bitmap.h"
 #include "VR.h"
 
-#include <GL/glew.h>
-
 /* Avoid pointless includes on Windows */
 #define WIN32_LEAN_AND_MEAN
 #define NOSERVICE
@@ -1109,6 +1107,7 @@ void Gfx_OnWindowResize(void) {
 #ifdef CC_BUILD_GL
 #if defined CC_BUILD_WIN
 #include <windows.h>
+#include <GL/gl.h>
 #elif defined CC_BUILD_IOS
 #include <OpenGLES/ES2/gl.h>
 #elif defined CC_BUILD_MACOS
@@ -2252,7 +2251,6 @@ static void GL_CheckSupport(void) {
 *#########################################################################################################################*/
 static void OnContextLost(void* obj)      { Gfx_FreeState(); }
 static void OnContextRecreated(void* obj) { Gfx_RestoreState(); }
-
 
 static void OnInit(void) {
 	Event_Register_(&GfxEvents.ContextLost,      NULL, OnContextLost);
