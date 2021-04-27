@@ -551,7 +551,7 @@ void Game_TakeScreenshot(void) {
 #endif
 }
 
-void RenderScene(Hmd_Eye nEye, double delta, float t) {
+static void RenderScene(Hmd_Eye nEye, double delta, float t) {
 	Gfx_Clear();	
 	Gfx_SetDepthTest(true);
 
