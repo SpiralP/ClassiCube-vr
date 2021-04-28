@@ -99,8 +99,6 @@ void VR_Setup() {
     return;
   }
 
-  // SetupTexturemaps();
-  // SetupScene();
   SetupCameras();
   SetupStereoRenderTargets();
 }
@@ -193,11 +191,7 @@ void VR_EndFrame() {
   }
 }
 
-struct Matrix VR_GetProjection(Hmd_Eye nEye) {
-  mat4s m = GetCurrentViewProjectionMatrix(nEye);
-  // Platform_Log1("WaitGetPoses %i", &error);
-  // glm_mat4_print(&m, stdout);
-
+static struct Matrix MatrixFromMat4s(mat4s m) {
   struct Matrix m2 = {
       m.m00, m.m01, m.m02, m.m03,  //
       m.m10, m.m11, m.m12, m.m13,  //
@@ -206,4 +200,22 @@ struct Matrix VR_GetProjection(Hmd_Eye nEye) {
   };
 
   return m2;
+}
+
+struct Matrix VR_GetViewMatrix() {
+  return MatrixFromMat4s(m_mat4HMDPose);
+}
+
+struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye) {
+  mat4s m;
+
+  if (nEye == EVREye_Eye_Left) {
+    m = glms_mat4_mul(m_mat4ProjectionLeft, m_mat4eyePosLeft);
+  } else if (nEye == EVREye_Eye_Right) {
+    m = glms_mat4_mul(m_mat4ProjectionRight, m_mat4eyePosRight);
+  } else {
+    m = glms_mat4_identity();
+  }
+
+  return MatrixFromMat4s(m);
 }

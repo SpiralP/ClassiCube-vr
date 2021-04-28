@@ -126,20 +126,6 @@ static mat4s GetHMDMatrixPoseEye(Hmd_Eye nEye) {
   return glms_mat4_inv(matrixObj);
 }
 
-static mat4s GetCurrentViewProjectionMatrix(Hmd_Eye nEye) {
-  // GetProjectionMatrix * GetEyeToHeadTransform *
-  // TrackedDevicePose.mDeviceToAbsoluteTracking
-  if (nEye == EVREye_Eye_Left) {
-    return glms_mat4_mul(glms_mat4_mul(m_mat4ProjectionLeft, m_mat4eyePosLeft),
-                         m_mat4HMDPose);
-  } else if (nEye == EVREye_Eye_Right) {
-    return glms_mat4_mul(
-        glms_mat4_mul(m_mat4ProjectionRight, m_mat4eyePosRight), m_mat4HMDPose);
-  } else {
-    return glms_mat4_identity();
-  }
-}
-
 static void SetupCameras() {
   m_mat4ProjectionLeft = GetHMDMatrixProjectionEye(EVREye_Eye_Left);
   m_mat4ProjectionRight = GetHMDMatrixProjectionEye(EVREye_Eye_Right);

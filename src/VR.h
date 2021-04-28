@@ -26,7 +26,10 @@ void VR_EndFrame();
 /* updates all device poses, call after frame rendered */
 void VR_UpdateHMDMatrixPose();
 
+/* gets view matrix for specified eye */
+struct Matrix VR_GetViewMatrix();
+
 /* gets projection matrix for specified eye */
-struct Matrix VR_GetProjection(Hmd_Eye nEye);
+struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye);
 
 #endif

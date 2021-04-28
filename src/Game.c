@@ -556,9 +556,9 @@ static void RenderScene(Hmd_Eye nEye, double delta, float t) {
 	Gfx_SetDepthTest(true);
 
 	Camera.CurrentPos = Camera.Active->GetPosition(t);
+	Gfx.Projection = VR_GetProjectionMatrix(nEye);
 	UpdateViewMatrix();
 
-	Gfx.Projection = VR_GetProjection(nEye);
 	Gfx_LoadMatrix(MATRIX_PROJECTION, &Gfx.Projection);
 	Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
 
