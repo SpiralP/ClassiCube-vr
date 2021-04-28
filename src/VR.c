@@ -16,9 +16,12 @@
 #include "Vectors.h"
 #include "Window.h"
 
+mat4s m_rmat4DevicePose[64 /* k_unMaxTrackedDeviceCount */];
+mat4s m_mat4HMDPose;
+
 void VR_UpdateHMDMatrixPose() {
-  EVRCompositorError error = vr_compositor->WaitGetPoses(
-      m_rTrackedDevicePose, k_unMaxTrackedDeviceCount, NULL, 0);
+  EVRCompositorError error = g_pCompositor->WaitGetPoses(
+      g_rTrackedDevicePose, k_unMaxTrackedDeviceCount, NULL, 0);
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
     Platform_Log1("WaitGetPoses %i", &error);
@@ -28,19 +31,21 @@ void VR_UpdateHMDMatrixPose() {
 
   for (unsigned int nDevice = 0; nDevice < k_unMaxTrackedDeviceCount;
        ++nDevice) {
-    if (m_rTrackedDevicePose[nDevice].bPoseIsValid) {
-      m_rmat4DevicePose[nDevice] = ConvertSteamVRMatrixToMatrix4(
-          m_rTrackedDevicePose[nDevice].mDeviceToAbsoluteTracking);
+    if (g_rTrackedDevicePose[nDevice].bPoseIsValid) {
+      m_rmat4DevicePose[nDevice] = Mat4sFromHmdMatrix34(
+          g_rTrackedDevicePose[nDevice].mDeviceToAbsoluteTracking);
     }
   }
 
-  if (m_rTrackedDevicePose[k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
+  if (g_rTrackedDevicePose[k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
     m_mat4HMDPose = m_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd];
     m_mat4HMDPose = glms_mat4_inv(m_mat4HMDPose);
   }
 }
 
 void VR_Setup() {
+  char errorMessage[256];
+
   glewExperimental = GL_TRUE;
   GLenum nGlewError = glewInit();
   if (nGlewError != GLEW_OK) {
@@ -54,25 +59,29 @@ void VR_Setup() {
   EVRInitError error = EVRInitError_VRInitError_None;
   VR_InitInternal(&error, EVRApplicationType_VRApplication_Scene);
   if (error != EVRInitError_VRInitError_None) {
-    Logger_Abort("VR_InitInternal");
+    snprintf(errorMessage, 256, "VR_InitInternal: %s",
+             VR_GetStringForHmdError(error));
+    Logger_Abort2(error, errorMessage);
     return;
   }
 
   if (!VR_IsInterfaceVersionValid(IVRSystem_Version)) {
     VR_ShutdownInternal();
-    Logger_Abort("!VR_IsInterfaceVersionValid");
+    Logger_Abort("!VR_IsInterfaceVersionValid System");
     return;
   }
 
   error = EVRInitError_VRInitError_None;
 
-  char systemInterfaceName[256] = {0};
-
-  sprintf(systemInterfaceName, "FnTable:%s", IVRSystem_Version);
-  vr_system = (struct VR_IVRSystem_FnTable*)VR_GetGenericInterface(
-      systemInterfaceName, &error);
+  char interfaceName[256];
+  snprintf(interfaceName, 256, "FnTable:%s", IVRSystem_Version);
+  g_pSystem = (struct VR_IVRSystem_FnTable*)VR_GetGenericInterface(
+      interfaceName, &error);
   if (error != EVRInitError_VRInitError_None) {
-    Logger_Abort("VR_GetGenericInterface System");
+    snprintf(errorMessage, 256, "VR_GetGenericInterface System: %s",
+             VR_GetStringForHmdError(error));
+    Logger_Abort2(error, errorMessage);
+    return;
   }
 
   cc_string title;
@@ -80,22 +89,24 @@ void VR_Setup() {
   String_InitArray(title, titleBuffer);
 
   char name[256 + 1] = {0};
-  uint32_t nameLen = vr_system->GetStringTrackedDeviceProperty(
+  uint32_t nameLen = g_pSystem->GetStringTrackedDeviceProperty(
       k_unTrackedDeviceIndex_Hmd,
       ETrackedDeviceProperty_Prop_TrackingSystemName_String, name, 256, NULL);
   char serial[256 + 1] = {0};
-  uint32_t serialLen = vr_system->GetStringTrackedDeviceProperty(
+  uint32_t serialLen = g_pSystem->GetStringTrackedDeviceProperty(
       k_unTrackedDeviceIndex_Hmd,
       ETrackedDeviceProperty_Prop_SerialNumber_String, serial, 256, NULL);
   String_Format4(&title, "%c (%s) - %c (%c)", GAME_APP_TITLE, &Game_Username,
                  &name, &serial);
   Window_SetTitle(&title);
 
-  sprintf(systemInterfaceName, "FnTable:%s", IVRCompositor_Version);
-  vr_compositor = (struct VR_IVRCompositor_FnTable*)VR_GetGenericInterface(
-      systemInterfaceName, &error);
+  snprintf(interfaceName, 256, "FnTable:%s", IVRCompositor_Version);
+  g_pCompositor = (struct VR_IVRCompositor_FnTable*)VR_GetGenericInterface(
+      interfaceName, &error);
   if (error != EVRInitError_VRInitError_None) {
-    Logger_Abort("VR_GetGenericInterface Compositor");
+    snprintf(errorMessage, 256, "VR_GetGenericInterface Compositor: %s",
+             VR_GetStringForHmdError(error));
+    Logger_Abort2(error, errorMessage);
     return;
   }
 
@@ -110,7 +121,7 @@ void RenderCompanionWindow() {
   struct Texture tex;
 
   // render left eye (first half of index array )
-  tex.ID = leftEyeDesc.m_nRenderTextureId;
+  tex.ID = g_descLeftEye.m_nRenderTextureId;
   tex.X = 0;
   tex.Y = 0;
   tex.Width = Game.Width / 2;
@@ -122,7 +133,7 @@ void RenderCompanionWindow() {
   Texture_Render(&tex);
 
   // render right eye (second half of index array )
-  tex.ID = rightEyeDesc.m_nRenderTextureId;
+  tex.ID = g_descRightEye.m_nRenderTextureId;
   tex.X = Game.Width / 2;
   tex.Y = 0;
   tex.Width = Game.Width / 2;
@@ -143,14 +154,14 @@ void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,
                             double delta,
                             float t) {
   // Left Eye
-  glBindFramebuffer(GL_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId);
-  glViewport(0, 0, m_nRenderWidth, m_nRenderHeight);
+  glBindFramebuffer(GL_FRAMEBUFFER, g_descLeftEye.m_nRenderFramebufferId);
+  glViewport(0, 0, g_nRenderWidth, g_nRenderHeight);
   RenderScene(EVREye_Eye_Left, delta, t);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
   // Right Eye
-  glBindFramebuffer(GL_FRAMEBUFFER, rightEyeDesc.m_nRenderFramebufferId);
-  glViewport(0, 0, m_nRenderWidth, m_nRenderHeight);
+  glBindFramebuffer(GL_FRAMEBUFFER, g_descRightEye.m_nRenderFramebufferId);
+  glViewport(0, 0, g_nRenderWidth, g_nRenderHeight);
   RenderScene(EVREye_Eye_Right, delta, t);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -166,10 +177,10 @@ void VR_EndFrame() {
 
   // after RenderCompanionWindow();
   EVRCompositorError error;
-  Texture_t leftEyeTexture = {(void*)(uintptr_t)leftEyeDesc.m_nRenderTextureId,
-                              ETextureType_TextureType_OpenGL,
-                              EColorSpace_ColorSpace_Gamma};
-  error = vr_compositor->Submit(EVREye_Eye_Left, &leftEyeTexture, NULL,
+  Texture_t leftEyeTexture = {
+      (void*)(uintptr_t)g_descLeftEye.m_nRenderTextureId,
+      ETextureType_TextureType_OpenGL, EColorSpace_ColorSpace_Gamma};
+  error = g_pCompositor->Submit(EVREye_Eye_Left, &leftEyeTexture, NULL,
                                 EVRSubmitFlags_Submit_Default);
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
@@ -179,9 +190,9 @@ void VR_EndFrame() {
   }
 
   Texture_t rightEyeTexture = {
-      (void*)(uintptr_t)rightEyeDesc.m_nRenderTextureId,
+      (void*)(uintptr_t)g_descRightEye.m_nRenderTextureId,
       ETextureType_TextureType_OpenGL, EColorSpace_ColorSpace_Gamma};
-  error = vr_compositor->Submit(EVREye_Eye_Right, &rightEyeTexture, NULL,
+  error = g_pCompositor->Submit(EVREye_Eye_Right, &rightEyeTexture, NULL,
                                 EVRSubmitFlags_Submit_Default);
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
@@ -189,17 +200,6 @@ void VR_EndFrame() {
     Logger_Abort("Submit EVREye_Eye_Right");
     return;
   }
-}
-
-static struct Matrix MatrixFromMat4s(mat4s m) {
-  struct Matrix m2 = {
-      m.m00, m.m01, m.m02, m.m03,  //
-      m.m10, m.m11, m.m12, m.m13,  //
-      m.m20, m.m21, m.m22, m.m23,  //
-      m.m30, m.m31, m.m32, m.m33,  //
-  };
-
-  return m2;
 }
 
 struct Matrix VR_GetViewMatrix() {
@@ -210,9 +210,9 @@ struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye) {
   mat4s m;
 
   if (nEye == EVREye_Eye_Left) {
-    m = glms_mat4_mul(m_mat4ProjectionLeft, m_mat4eyePosLeft);
+    m = glms_mat4_mul(g_mat4ProjectionLeft, g_mat4eyePosLeft);
   } else if (nEye == EVREye_Eye_Right) {
-    m = glms_mat4_mul(m_mat4ProjectionRight, m_mat4eyePosRight);
+    m = glms_mat4_mul(g_mat4ProjectionRight, g_mat4eyePosRight);
   } else {
     m = glms_mat4_identity();
   }

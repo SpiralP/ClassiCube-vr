@@ -9,14 +9,29 @@
 #include "Game.h"
 #include "Logger.h"
 
-// --------------------- openvr exports ---------------------------
-// LiquidVR
-// VRControlPanel
-// VRHeadsetView
-// VRPaths
-// VRVirtualDisplay
-// VR_GetStringForHmdError
+// ---------------------- global variables ------------------------
+struct FramebufferDesc {
+  GLuint m_nDepthBufferId;
+  GLuint m_nRenderTextureId;
+  GLuint m_nRenderFramebufferId;
+};
+struct FramebufferDesc g_descLeftEye;
+struct FramebufferDesc g_descRightEye;
 
+struct VR_IVRSystem_FnTable* g_pSystem;
+struct VR_IVRCompositor_FnTable* g_pCompositor;
+
+TrackedDevicePose_t g_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
+
+uint32_t g_nRenderWidth;
+uint32_t g_nRenderHeight;
+
+mat4s g_mat4ProjectionLeft;
+mat4s g_mat4ProjectionRight;
+mat4s g_mat4eyePosLeft;
+mat4s g_mat4eyePosRight;
+
+// --------------------- openvr exports ---------------------------
 intptr_t VR_InitInternal(EVRInitError* peError, EVRApplicationType eType);
 void VR_ShutdownInternal();
 bool VR_IsHmdPresent();
@@ -34,30 +49,41 @@ uint32_t VR_InitInternal2(EVRInitError* peError,
                           EVRApplicationType eApplicationType,
                           const char* pStartupInfo);
 bool VR_IsInterfaceVersionValid(const char* pchInterfaceVersion);
+const char* VR_GetStringForHmdError(EVRInitError error);
+
+// -------------------- matrix helpers ----------------------------
+static mat4s Mat4sFromHmdMatrix34(const HmdMatrix34_t m) {
+  mat4s m2 = {
+      m.m[0][0], m.m[1][0], m.m[2][0], 0.0,   //
+      m.m[0][1], m.m[1][1], m.m[2][1], 0.0,   //
+      m.m[0][2], m.m[1][2], m.m[2][2], 0.0,   //
+      m.m[0][3], m.m[1][3], m.m[2][3], 1.0f,  //
+  };
+  return m2;
+}
+
+static mat4s Mat4sFromHmdMatrix44(const HmdMatrix44_t m) {
+  mat4s m2 = {
+      m.m[0][0], m.m[1][0], m.m[2][0], m.m[3][0],  //
+      m.m[0][1], m.m[1][1], m.m[2][1], m.m[3][1],  //
+      m.m[0][2], m.m[1][2], m.m[2][2], m.m[3][2],  //
+      m.m[0][3], m.m[1][3], m.m[2][3], m.m[3][3],  //
+  };
+  return m2;
+}
+
+static struct Matrix MatrixFromMat4s(mat4s m) {
+  struct Matrix m2 = {
+      m.m00, m.m01, m.m02, m.m03,  //
+      m.m10, m.m11, m.m12, m.m13,  //
+      m.m20, m.m21, m.m22, m.m23,  //
+      m.m30, m.m31, m.m32, m.m33,  //
+  };
+
+  return m2;
+}
+
 // ----------------------------------------------------------------
-
-struct FramebufferDesc {
-  GLuint m_nDepthBufferId;
-  GLuint m_nRenderTextureId;
-  GLuint m_nRenderFramebufferId;
-};
-struct FramebufferDesc leftEyeDesc;
-struct FramebufferDesc rightEyeDesc;
-
-struct VR_IVRSystem_FnTable* vr_system;
-struct VR_IVRCompositor_FnTable* vr_compositor;
-
-TrackedDevicePose_t m_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
-
-uint32_t m_nRenderWidth;
-uint32_t m_nRenderHeight;
-
-float m_fNearClip = 0.01f;
-
-mat4s m_mat4ProjectionLeft;
-mat4s m_mat4ProjectionRight;
-mat4s m_mat4eyePosLeft;
-mat4s m_mat4eyePosRight;
 
 static void CreateFrameBuffer(int nWidth,
                               int nHeight,
@@ -92,49 +118,26 @@ static void CreateFrameBuffer(int nWidth,
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-mat4s m_rmat4DevicePose[64 /* k_unMaxTrackedDeviceCount */];
-mat4s m_mat4HMDPose;
-
-static mat4s ConvertSteamVRMatrixToMatrix4(const HmdMatrix34_t matPose) {
-  mat4s matrixObj = {matPose.m[0][0], matPose.m[1][0], matPose.m[2][0], 0.0,
-                     matPose.m[0][1], matPose.m[1][1], matPose.m[2][1], 0.0,
-                     matPose.m[0][2], matPose.m[1][2], matPose.m[2][2], 0.0,
-                     matPose.m[0][3], matPose.m[1][3], matPose.m[2][3], 1.0f};
-  return matrixObj;
+static mat4s GetProjectionMatrix(Hmd_Eye nEye) {
+  float fNearZ = 0.1f;
+  return Mat4sFromHmdMatrix44(
+      g_pSystem->GetProjectionMatrix(nEye, fNearZ, (float)Game_ViewDistance));
 }
 
-static mat4s GetHMDMatrixProjectionEye(Hmd_Eye nEye) {
-  HmdMatrix44_t mat = vr_system->GetProjectionMatrix(nEye, m_fNearClip,
-                                                     (float)Game_ViewDistance);
-
-  mat4s matrixObj = {mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
-                     mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
-                     mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
-                     mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]};
-
-  return matrixObj;
-}
-
-static mat4s GetHMDMatrixPoseEye(Hmd_Eye nEye) {
-  HmdMatrix34_t matEyeRight = vr_system->GetEyeToHeadTransform(nEye);
-  mat4s matrixObj = {
-      matEyeRight.m[0][0], matEyeRight.m[1][0], matEyeRight.m[2][0], 0.0,
-      matEyeRight.m[0][1], matEyeRight.m[1][1], matEyeRight.m[2][1], 0.0,
-      matEyeRight.m[0][2], matEyeRight.m[1][2], matEyeRight.m[2][2], 0.0,
-      matEyeRight.m[0][3], matEyeRight.m[1][3], matEyeRight.m[2][3], 1.0f};
-
-  return glms_mat4_inv(matrixObj);
+static mat4s GetEyeToHeadTransform(Hmd_Eye nEye) {
+  return glms_mat4_inv(
+      Mat4sFromHmdMatrix34(g_pSystem->GetEyeToHeadTransform(nEye)));
 }
 
 static void SetupCameras() {
-  m_mat4ProjectionLeft = GetHMDMatrixProjectionEye(EVREye_Eye_Left);
-  m_mat4ProjectionRight = GetHMDMatrixProjectionEye(EVREye_Eye_Right);
-  m_mat4eyePosLeft = GetHMDMatrixPoseEye(EVREye_Eye_Left);
-  m_mat4eyePosRight = GetHMDMatrixPoseEye(EVREye_Eye_Right);
+  g_mat4ProjectionLeft = GetProjectionMatrix(EVREye_Eye_Left);
+  g_mat4ProjectionRight = GetProjectionMatrix(EVREye_Eye_Right);
+  g_mat4eyePosLeft = GetEyeToHeadTransform(EVREye_Eye_Left);
+  g_mat4eyePosRight = GetEyeToHeadTransform(EVREye_Eye_Right);
 }
 
 static void SetupStereoRenderTargets() {
-  vr_system->GetRecommendedRenderTargetSize(&m_nRenderWidth, &m_nRenderHeight);
-  CreateFrameBuffer(m_nRenderWidth, m_nRenderHeight, &leftEyeDesc);
-  CreateFrameBuffer(m_nRenderWidth, m_nRenderHeight, &rightEyeDesc);
+  g_pSystem->GetRecommendedRenderTargetSize(&g_nRenderWidth, &g_nRenderHeight);
+  CreateFrameBuffer(g_nRenderWidth, g_nRenderHeight, &g_descLeftEye);
+  CreateFrameBuffer(g_nRenderWidth, g_nRenderHeight, &g_descRightEye);
 }
