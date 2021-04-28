@@ -4,7 +4,7 @@
 #include <cglm/struct.h>
 #include <openvr_capi.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <windows.h>
 
 #include "Constants.h"
 #include "Game.h"
@@ -16,8 +16,8 @@
 #include "Vectors.h"
 #include "Window.h"
 
-mat4s m_rmat4DevicePose[64 /* k_unMaxTrackedDeviceCount */];
-mat4s m_mat4HMDPose;
+mat4s g_rmat4DevicePose[64 /* k_unMaxTrackedDeviceCount */];
+mat4s g_mat4HMDPose;
 
 void VR_UpdateHMDMatrixPose() {
   EVRCompositorError error = g_pCompositor->WaitGetPoses(
@@ -31,14 +31,15 @@ void VR_UpdateHMDMatrixPose() {
   for (unsigned int nDevice = 0; nDevice < k_unMaxTrackedDeviceCount;
        ++nDevice) {
     if (g_rTrackedDevicePose[nDevice].bPoseIsValid) {
-      m_rmat4DevicePose[nDevice] = Mat4sFromHmdMatrix34(
+      g_rmat4DevicePose[nDevice] = Mat4sFromHmdMatrix34(
           g_rTrackedDevicePose[nDevice].mDeviceToAbsoluteTracking);
+      // Platform_Log1("%i", &nDevice, g_rTrackedDevicePose[nDevice]);
     }
   }
 
   if (g_rTrackedDevicePose[k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
-    m_mat4HMDPose = m_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd];
-    m_mat4HMDPose = glms_mat4_inv(m_mat4HMDPose);
+    g_mat4HMDPose =
+        glms_mat4_inv(g_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd]);
   }
 }
 
@@ -97,6 +98,19 @@ void VR_Setup() {
     return;
   }
 
+  // get Input interface
+  snprintf(interfaceName, sizeof(interfaceName), "FnTable:%s",
+           IVRInput_Version);
+  g_pInput = (struct VR_IVRInput_FnTable*)VR_GetGenericInterface(interfaceName,
+                                                                 &error);
+  if (error != EVRInitError_VRInitError_None) {
+    snprintf(errorMessage, sizeof(errorMessage),
+             "VR_GetGenericInterface Input: %s",
+             VR_GetStringForHmdError(error));
+    Logger_Abort2(error, errorMessage);
+    return;
+  }
+
   // set window title
   cc_string title;
   char titleBuffer[STRING_SIZE];
@@ -109,15 +123,16 @@ void VR_Setup() {
       ETrackedDeviceProperty_Prop_TrackingSystemName_String, headsetName,
       sizeof(headsetName), &propError);
   if (propError != ETrackedPropertyError_TrackedProp_Success) {
-    Logger_Abort2(propError,
-                  "GetStringTrackedDeviceProperty "
-                  "ETrackedDeviceProperty_Prop_TrackingSystemName_String");
+    Logger_Abort2(
+        propError,
+        "GetStringTrackedDeviceProperty Prop_TrackingSystemName_String");
     return;
   }
   String_Format3(&title, "%c (%s) - %c", GAME_APP_TITLE, &Game_Username,
                  &headsetName);
   Window_SetTitle(&title);
 
+  SetupInput();
   SetupCameras();
   SetupStereoRenderTargets();
 }
@@ -175,7 +190,7 @@ void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,
 }
 
 void VR_BeginFrame() {
-  //
+  UpdateInput();
 }
 
 void VR_EndFrame() {
@@ -209,7 +224,7 @@ void VR_EndFrame() {
 }
 
 struct Matrix VR_GetViewMatrix() {
-  return MatrixFromMat4s(m_mat4HMDPose);
+  return MatrixFromMat4s(g_mat4HMDPose);
 }
 
 struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye) {

@@ -20,6 +20,7 @@ struct FramebufferDesc g_descRightEye;
 
 struct VR_IVRSystem_FnTable* g_pSystem;
 struct VR_IVRCompositor_FnTable* g_pCompositor;
+struct VR_IVRInput_FnTable* g_pInput;
 
 TrackedDevicePose_t g_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
 
@@ -30,6 +31,10 @@ mat4s g_mat4ProjectionLeft;
 mat4s g_mat4ProjectionRight;
 mat4s g_mat4eyePosLeft;
 mat4s g_mat4eyePosRight;
+
+VRActionSetHandle_t g_actionSetMain;
+VRActionHandle_t g_hLeftHand;
+VRActionHandle_t g_hRightHand;
 
 // --------------------- openvr exports ---------------------------
 intptr_t VR_InitInternal(EVRInitError* peError, EVRApplicationType eType);
@@ -140,4 +145,102 @@ static void SetupStereoRenderTargets() {
   g_pSystem->GetRecommendedRenderTargetSize(&g_nRenderWidth, &g_nRenderHeight);
   CreateFrameBuffer(g_nRenderWidth, g_nRenderHeight, &g_descLeftEye);
   CreateFrameBuffer(g_nRenderWidth, g_nRenderHeight, &g_descRightEye);
+}
+
+static void SetupInput() {
+  char cwd[MAX_PATH];
+  if (!GetCurrentDirectoryA(sizeof(cwd), cwd)) {
+    Logger_Abort("GetCurrentDirectoryA");
+    return;
+  }
+
+  char manifestPath[256];
+  snprintf(manifestPath, sizeof(manifestPath), "%s\\%s", cwd,
+           "openvr_actions.json");
+  EVRInputError inputError = g_pInput->SetActionManifestPath(manifestPath);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "SetActionManifestPath");
+    return;
+  }
+
+  inputError = g_pInput->GetActionSetHandle("/actions/main", &g_actionSetMain);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionSetHandle");
+    return;
+  }
+
+  inputError =
+      g_pInput->GetActionHandle("/actions/main/in/hand_left", &g_hLeftHand);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle hand_left");
+    return;
+  }
+
+  inputError =
+      g_pInput->GetActionHandle("/actions/main/in/hand_right", &g_hRightHand);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle hand_right");
+    return;
+  }
+}
+
+char g_modelLeftHand[256] = {0};
+mat4s g_poseLeftHand;
+
+char g_modelRightHand[256] = {0};
+
+static void UpdateInput() {
+  VRActiveActionSet_t actionSet = {0};
+  actionSet.ulActionSet = g_actionSetMain;
+  EVRInputError inputError =
+      g_pInput->UpdateActionState(&actionSet, sizeof(actionSet), 1);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "UpdateActionState");
+    return;
+  }
+
+  InputPoseActionData_t poseData;
+  inputError = g_pInput->GetPoseActionDataForNextFrame(
+      g_hLeftHand, ETrackingUniverseOrigin_TrackingUniverseStanding, &poseData,
+      sizeof(poseData), k_ulInvalidInputValueHandle);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetPoseActionDataForNextFrame");
+    return;
+  }
+
+  if (poseData.bActive && poseData.pose.bPoseIsValid) {
+    g_poseLeftHand =
+        Mat4sFromHmdMatrix34(poseData.pose.mDeviceToAbsoluteTracking);
+
+    InputOriginInfo_t originInfo;
+    inputError = g_pInput->GetOriginTrackedDeviceInfo(
+        poseData.activeOrigin, &originInfo, sizeof(originInfo));
+    if (inputError != EVRInputError_VRInputError_None) {
+      Logger_Abort2(inputError, "GetOriginTrackedDeviceInfo");
+      return;
+    }
+
+    // printf("%i\n", originInfo.trackedDeviceIndex);
+    if (originInfo.trackedDeviceIndex != k_unTrackedDeviceIndexInvalid) {
+      char modelName[256];
+      ETrackedPropertyError propError;
+      g_pSystem->GetStringTrackedDeviceProperty(
+          originInfo.trackedDeviceIndex,
+          ETrackedDeviceProperty_Prop_RenderModelName_String, modelName,
+          sizeof(modelName), &propError);
+      if (propError != ETrackedPropertyError_TrackedProp_Success) {
+        Logger_Abort2(propError,
+                      "GetStringTrackedDeviceProperty "
+                      "Prop_RenderModelName_String");
+        return;
+      }
+
+      if (strcmp(modelName, g_modelLeftHand) != 0) {
+        strncpy(g_modelLeftHand, modelName, sizeof(g_modelLeftHand));
+        printf("%s\n", modelName);
+      }
+    }
+  } else {
+    printf("no\n");
+  }
 }

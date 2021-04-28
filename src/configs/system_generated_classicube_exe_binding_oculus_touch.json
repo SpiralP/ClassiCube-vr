@@ -1,0 +1,27 @@
+{
+  "action_manifest_version": 0,
+  "alias_info": {},
+  "app_key": "system.generated.classicube.exe",
+  "bindings": {
+    "/actions/main": {
+      "haptics": [],
+      "poses": [
+        {
+          "output": "/actions/main/in/hand_left",
+          "path": "/user/hand/left/pose/raw"
+        },
+        {
+          "output": "/actions/main/in/hand_right",
+          "path": "/user/hand/right/pose/raw"
+        }
+      ],
+      "sources": []
+    }
+  },
+  "category": "steamvr_input",
+  "controller_type": "oculus_touch",
+  "description": "Bindings for ClassiCube for a generic controller",
+  "name": "ClassiCube bindings for a generic controller",
+  "options": {},
+  "simulated_actions": []
+}
