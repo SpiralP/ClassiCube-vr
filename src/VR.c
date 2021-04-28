@@ -24,8 +24,7 @@ void VR_UpdateHMDMatrixPose() {
       g_rTrackedDevicePose, k_unMaxTrackedDeviceCount, NULL, 0);
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
-    Platform_Log1("WaitGetPoses %i", &error);
-    Logger_Abort("WaitGetPoses");
+    Logger_Abort2(error, "WaitGetPoses");
     return;
   }
 
@@ -49,17 +48,17 @@ void VR_Setup() {
   glewExperimental = GL_TRUE;
   GLenum nGlewError = glewInit();
   if (nGlewError != GLEW_OK) {
-    Platform_Log1("Error initializing GLEW! %c",
-                  glewGetErrorString(nGlewError));
-    Logger_Abort("glewInit != GLEW_OK");
+    snprintf(errorMessage, sizeof(errorMessage), "glewInit: %s",
+             glewGetErrorString(nGlewError));
+    Logger_Abort2(nGlewError, errorMessage);
     return;
   }
   glGetError();  // to clear the error caused deep in GLEW
 
-  EVRInitError error = EVRInitError_VRInitError_None;
+  EVRInitError error;
   VR_InitInternal(&error, EVRApplicationType_VRApplication_Scene);
   if (error != EVRInitError_VRInitError_None) {
-    snprintf(errorMessage, 256, "VR_InitInternal: %s",
+    snprintf(errorMessage, sizeof(errorMessage), "VR_InitInternal: %s",
              VR_GetStringForHmdError(error));
     Logger_Abort2(error, errorMessage);
     return;
@@ -71,44 +70,53 @@ void VR_Setup() {
     return;
   }
 
-  error = EVRInitError_VRInitError_None;
-
+  // get System interface
   char interfaceName[256];
-  snprintf(interfaceName, 256, "FnTable:%s", IVRSystem_Version);
+  snprintf(interfaceName, sizeof(interfaceName), "FnTable:%s",
+           IVRSystem_Version);
   g_pSystem = (struct VR_IVRSystem_FnTable*)VR_GetGenericInterface(
       interfaceName, &error);
   if (error != EVRInitError_VRInitError_None) {
-    snprintf(errorMessage, 256, "VR_GetGenericInterface System: %s",
+    snprintf(errorMessage, sizeof(errorMessage),
+             "VR_GetGenericInterface System: %s",
              VR_GetStringForHmdError(error));
     Logger_Abort2(error, errorMessage);
     return;
   }
 
+  // get Compositor interface
+  snprintf(interfaceName, sizeof(interfaceName), "FnTable:%s",
+           IVRCompositor_Version);
+  g_pCompositor = (struct VR_IVRCompositor_FnTable*)VR_GetGenericInterface(
+      interfaceName, &error);
+  if (error != EVRInitError_VRInitError_None) {
+    snprintf(errorMessage, sizeof(errorMessage),
+             "VR_GetGenericInterface Compositor: %s",
+             VR_GetStringForHmdError(error));
+    Logger_Abort2(error, errorMessage);
+    return;
+  }
+
+  // set window title
   cc_string title;
   char titleBuffer[STRING_SIZE];
   String_InitArray(title, titleBuffer);
 
-  char name[256 + 1] = {0};
-  uint32_t nameLen = g_pSystem->GetStringTrackedDeviceProperty(
+  char headsetName[256];
+  ETrackedPropertyError propError;
+  g_pSystem->GetStringTrackedDeviceProperty(
       k_unTrackedDeviceIndex_Hmd,
-      ETrackedDeviceProperty_Prop_TrackingSystemName_String, name, 256, NULL);
-  char serial[256 + 1] = {0};
-  uint32_t serialLen = g_pSystem->GetStringTrackedDeviceProperty(
-      k_unTrackedDeviceIndex_Hmd,
-      ETrackedDeviceProperty_Prop_SerialNumber_String, serial, 256, NULL);
-  String_Format4(&title, "%c (%s) - %c (%c)", GAME_APP_TITLE, &Game_Username,
-                 &name, &serial);
-  Window_SetTitle(&title);
-
-  snprintf(interfaceName, 256, "FnTable:%s", IVRCompositor_Version);
-  g_pCompositor = (struct VR_IVRCompositor_FnTable*)VR_GetGenericInterface(
-      interfaceName, &error);
-  if (error != EVRInitError_VRInitError_None) {
-    snprintf(errorMessage, 256, "VR_GetGenericInterface Compositor: %s",
-             VR_GetStringForHmdError(error));
-    Logger_Abort2(error, errorMessage);
+      ETrackedDeviceProperty_Prop_TrackingSystemName_String, headsetName,
+      sizeof(headsetName), &propError);
+  if (propError != ETrackedPropertyError_TrackedProp_Success) {
+    Logger_Abort2(propError,
+                  "GetStringTrackedDeviceProperty "
+                  "ETrackedDeviceProperty_Prop_TrackingSystemName_String");
     return;
   }
+  String_Format3(&title, "%c (%s) - %c", GAME_APP_TITLE, &Game_Username,
+                 &headsetName);
+  Window_SetTitle(&title);
 
   SetupCameras();
   SetupStereoRenderTargets();
@@ -184,8 +192,7 @@ void VR_EndFrame() {
                                 EVRSubmitFlags_Submit_Default);
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
-    Platform_Log1("Submit EVREye_Eye_Left %i", &error);
-    Logger_Abort("Submit EVREye_Eye_Left");
+    Logger_Abort2(error, "Submit EVREye_Eye_Left");
     return;
   }
 
@@ -196,8 +203,7 @@ void VR_EndFrame() {
                                 EVRSubmitFlags_Submit_Default);
   if (error != EVRCompositorError_VRCompositorError_None &&
       error != EVRCompositorError_VRCompositorError_DoNotHaveFocus) {
-    Platform_Log1("Submit EVREye_Eye_Right %i", &error);
-    Logger_Abort("Submit EVREye_Eye_Right");
+    Logger_Abort2(error, "Submit EVREye_Eye_Right");
     return;
   }
 }
@@ -218,4 +224,8 @@ struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye) {
   }
 
   return MatrixFromMat4s(m);
+}
+
+void VR_Shutdown() {
+  VR_ShutdownInternal();
 }

@@ -1197,6 +1197,8 @@ cc_bool Gfx_TryRestoreContext(void) {
 }
 
 void Gfx_Free(void) {
+    VR_Shutdown();
+
 	Gfx_FreeState();
 	GLContext_Free();
 }

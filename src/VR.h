@@ -9,6 +9,9 @@
 /* sets up connection to steamvr, call once on app init */
 void VR_Setup();
 
+/* calls VR_ShutdownInternal */
+void VR_Shutdown();
+
 /* call before rendering frame */
 void VR_BeginFrame();
 
