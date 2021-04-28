@@ -35,4 +35,6 @@ struct Matrix VR_GetViewMatrix();
 /* gets projection matrix for specified eye */
 struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye);
 
+void VR_RenderControllers(Hmd_Eye nEye);
+
 #endif

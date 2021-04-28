@@ -111,6 +111,19 @@ void VR_Setup() {
     return;
   }
 
+  // get RenderModels interface
+  snprintf(interfaceName, sizeof(interfaceName), "FnTable:%s",
+           IVRRenderModels_Version);
+  g_pRenderModels = (struct VR_IVRRenderModels_FnTable*)VR_GetGenericInterface(
+      interfaceName, &error);
+  if (error != EVRInitError_VRInitError_None) {
+    snprintf(errorMessage, sizeof(errorMessage),
+             "VR_GetGenericInterface RenderModels: %s",
+             VR_GetStringForHmdError(error));
+    Logger_Abort2(error, errorMessage);
+    return;
+  }
+
   // set window title
   cc_string title;
   char titleBuffer[STRING_SIZE];
@@ -169,6 +182,32 @@ void RenderCompanionWindow() {
 
   Gfx_SetTexturing(false);
   Gfx_End2D();
+}
+
+static void RenderController(Hmd_Eye nEye, struct Controller* c) {
+  // 	const Matrix4 & matDeviceToTracking = m_rHand[eHand].m_rmat4Pose;
+  // Matrix4 matMVP =
+  //     glms_mat4_mul(VR_GetProjectionMatrix(nEye), controller->pose);
+  // glUniformMatrix4fv(m_nRenderModelMatrixLocation, 1, GL_FALSE,
+  // matMVP.get());
+
+  struct Matrix m = Gfx.View;
+  struct Matrix m2 = MatrixFromMat4s(c->pose);
+  Matrix_MulBy(&m, &m2);
+  Gfx_LoadMatrix(MATRIX_VIEW, &m);
+
+  glBindVertexArray(c->glVertArray);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, c->glTexture);
+  glDrawElements(GL_TRIANGLES, c->unVertexCount, GL_UNSIGNED_SHORT, 0);
+  glBindVertexArray(0);
+
+  Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
+}
+
+void VR_RenderControllers(Hmd_Eye nEye) {
+  RenderController(nEye, &g_controllerLeft);
+  RenderController(nEye, &g_controllerRight);
 }
 
 void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,

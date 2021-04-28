@@ -568,6 +568,8 @@ static void RenderScene(Hmd_Eye nEye, double delta, float t) {
 		RayTracer_SetInvalid(&Game_SelectedPos);
 	}
 
+	VR_RenderControllers(nEye);
+
 	Gfx_Begin2D(Game.Width, Game.Height);
 	Gui_RenderGui(delta);
 	Gfx_End2D();

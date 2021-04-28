@@ -21,6 +21,7 @@ struct FramebufferDesc g_descRightEye;
 struct VR_IVRSystem_FnTable* g_pSystem;
 struct VR_IVRCompositor_FnTable* g_pCompositor;
 struct VR_IVRInput_FnTable* g_pInput;
+struct VR_IVRRenderModels_FnTable* g_pRenderModels;
 
 TrackedDevicePose_t g_rTrackedDevicePose[64 /* k_unMaxTrackedDeviceCount */];
 
@@ -33,8 +34,23 @@ mat4s g_mat4eyePosLeft;
 mat4s g_mat4eyePosRight;
 
 VRActionSetHandle_t g_actionSetMain;
-VRActionHandle_t g_hLeftHand;
-VRActionHandle_t g_hRightHand;
+
+struct CGLM_ALIGN_MAT Controller {
+  VRActionHandle_t actionHandle;
+  char modelName[256];
+  /* mDeviceToAbsoluteTracking */
+  mat4s pose;
+  RenderModel_t* model;
+  RenderModel_TextureMap_t* texture;
+  GLuint glVertBuffer;
+  GLuint glIndexBuffer;
+  GLuint glVertArray;
+  GLuint glTexture;
+  GLsizei unVertexCount;
+};
+
+struct Controller g_controllerLeft = {0};
+struct Controller g_controllerRight = {0};
 
 // --------------------- openvr exports ---------------------------
 intptr_t VR_InitInternal(EVRInitError* peError, EVRApplicationType eType);
@@ -169,39 +185,84 @@ static void SetupInput() {
     return;
   }
 
-  inputError =
-      g_pInput->GetActionHandle("/actions/main/in/hand_left", &g_hLeftHand);
+  inputError = g_pInput->GetActionHandle("/actions/main/in/hand_left",
+                                         &g_controllerLeft.actionHandle);
   if (inputError != EVRInputError_VRInputError_None) {
     Logger_Abort2(inputError, "GetActionHandle hand_left");
     return;
   }
 
-  inputError =
-      g_pInput->GetActionHandle("/actions/main/in/hand_right", &g_hRightHand);
+  inputError = g_pInput->GetActionHandle("/actions/main/in/hand_right",
+                                         &g_controllerRight.actionHandle);
   if (inputError != EVRInputError_VRInputError_None) {
     Logger_Abort2(inputError, "GetActionHandle hand_right");
     return;
   }
 }
 
-char g_modelLeftHand[256] = {0};
-mat4s g_poseLeftHand;
+static void InitController(struct Controller* c) {
+  // create and bind a VAO to hold state for this model
+  glGenVertexArrays(1, &c->glVertArray);
+  glBindVertexArray(c->glVertArray);
 
-char g_modelRightHand[256] = {0};
+  // Populate a vertex buffer
+  glGenBuffers(1, &c->glVertBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, c->glVertBuffer);
+  glBufferData(GL_ARRAY_BUFFER,
+               sizeof(RenderModel_Vertex_t) * c->model->unVertexCount,
+               c->model->rVertexData, GL_STATIC_DRAW);
 
-static void UpdateInput() {
-  VRActiveActionSet_t actionSet = {0};
-  actionSet.ulActionSet = g_actionSetMain;
-  EVRInputError inputError =
-      g_pInput->UpdateActionState(&actionSet, sizeof(actionSet), 1);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "UpdateActionState");
-    return;
-  }
+  // Identify the components in the vertex buffer
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(RenderModel_Vertex_t),
+                        (void*)offsetof(RenderModel_Vertex_t, vPosition));
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderModel_Vertex_t),
+                        (void*)offsetof(RenderModel_Vertex_t, vNormal));
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderModel_Vertex_t),
+                        (void*)offsetof(RenderModel_Vertex_t, rfTextureCoord));
 
+  // Create and populate the index buffer
+  glGenBuffers(1, &c->glIndexBuffer);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, c->glIndexBuffer);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+               sizeof(uint16_t) * c->model->unTriangleCount * 3,
+               c->model->rIndexData, GL_STATIC_DRAW);
+
+  glBindVertexArray(0);
+
+  // create and populate the texture
+  glGenTextures(1, &c->glTexture);
+  glBindTexture(GL_TEXTURE_2D, c->glTexture);
+
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, c->texture->unWidth,
+               c->texture->unHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               c->texture->rubTextureMapData);
+
+  // If this renders black ask McJohn what's wrong.
+  glGenerateMipmap(GL_TEXTURE_2D);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_LINEAR_MIPMAP_LINEAR);
+
+  GLfloat fLargest;
+  glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
+  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, fLargest);
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  c->unVertexCount = c->model->unTriangleCount * 3;
+}
+
+static void UpdateController(struct Controller* controller) {
   InputPoseActionData_t poseData;
-  inputError = g_pInput->GetPoseActionDataForNextFrame(
-      g_hLeftHand, ETrackingUniverseOrigin_TrackingUniverseStanding, &poseData,
+  EVRInputError inputError = g_pInput->GetPoseActionDataForNextFrame(
+      controller->actionHandle,
+      ETrackingUniverseOrigin_TrackingUniverseStanding, &poseData,
       sizeof(poseData), k_ulInvalidInputValueHandle);
   if (inputError != EVRInputError_VRInputError_None) {
     Logger_Abort2(inputError, "GetPoseActionDataForNextFrame");
@@ -209,7 +270,7 @@ static void UpdateInput() {
   }
 
   if (poseData.bActive && poseData.pose.bPoseIsValid) {
-    g_poseLeftHand =
+    controller->pose =
         Mat4sFromHmdMatrix34(poseData.pose.mDeviceToAbsoluteTracking);
 
     InputOriginInfo_t originInfo;
@@ -235,12 +296,61 @@ static void UpdateInput() {
         return;
       }
 
-      if (strcmp(modelName, g_modelLeftHand) != 0) {
-        strncpy(g_modelLeftHand, modelName, sizeof(g_modelLeftHand));
-        printf("%s\n", modelName);
+      if (strcmp(modelName, controller->modelName) != 0) {
+        strncpy(controller->modelName, modelName,
+                sizeof(((struct Controller*)0)->modelName));
+
+        RenderModel_t* pModel;
+        EVRRenderModelError modelError;
+        while (true) {
+          modelError =
+              g_pRenderModels->LoadRenderModel_Async(modelName, &pModel);
+          if (modelError != EVRRenderModelError_VRRenderModelError_Loading) {
+            break;
+          }
+
+          Sleep(1);
+        }
+
+        if (modelError != EVRRenderModelError_VRRenderModelError_None) {
+          Logger_Abort2(modelError, "LoadRenderModel_Async");
+          return;
+        }
+        controller->model = pModel;
+
+        RenderModel_TextureMap_t* pTexture;
+        while (1) {
+          modelError = g_pRenderModels->LoadTexture_Async(
+              pModel->diffuseTextureId, &pTexture);
+          if (modelError != EVRRenderModelError_VRRenderModelError_Loading) {
+            break;
+          }
+
+          Sleep(1);
+        }
+
+        if (modelError != EVRRenderModelError_VRRenderModelError_None) {
+          Logger_Abort2(modelError, "LoadRenderModel_Async");
+          return;
+        }
+        controller->texture = pTexture;
+
+        Platform_Log1("%c OK", modelName);
       }
     }
-  } else {
-    printf("no\n");
   }
+}
+
+static void UpdateInput() {
+  VRActiveActionSet_t actionSet = {0};
+  actionSet.ulActionSet = g_actionSetMain;
+  EVRInputError inputError =
+      g_pInput->UpdateActionState(&actionSet, sizeof(actionSet), 1);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "UpdateActionState");
+    return;
+  }
+
+  UpdateController(&g_controllerLeft);
+  UpdateController(&g_controllerRight);
 }
