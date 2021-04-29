@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include "Constants.h"
+#include "Entity.h"
 #include "Game.h"
 #include "Graphics.h"
 #include "Logger.h"
@@ -43,6 +44,16 @@ void VR_UpdateHMDMatrixPose() {
   }
 }
 
+void APIENTRY DebugCallback(GLenum source,
+                            GLenum type,
+                            GLuint id,
+                            GLenum severity,
+                            GLsizei length,
+                            const char* message,
+                            const void* userParam) {
+  printf("GL Error: %s\n", message);
+}
+
 void VR_Setup() {
   char errorMessage[256];
 
@@ -55,6 +66,11 @@ void VR_Setup() {
     return;
   }
   glGetError();  // to clear the error caused deep in GLEW
+
+  glDebugMessageCallback((GLDEBUGPROC)DebugCallback, NULL);
+  glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL,
+                        GL_TRUE);
+  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 
   EVRInitError error;
   VR_InitInternal(&error, EVRApplicationType_VRApplication_Scene);
@@ -185,29 +201,37 @@ void RenderCompanionWindow() {
 }
 
 static void RenderController(Hmd_Eye nEye, struct Controller* c) {
-  // 	const Matrix4 & matDeviceToTracking = m_rHand[eHand].m_rmat4Pose;
-  // Matrix4 matMVP =
-  //     glms_mat4_mul(VR_GetProjectionMatrix(nEye), controller->pose);
-  // glUniformMatrix4fv(m_nRenderModelMatrixLocation, 1, GL_FALSE,
-  // matMVP.get());
-
-  struct Matrix m = Gfx.View;
-  struct Matrix m2 = MatrixFromMat4s(c->pose);
-  Matrix_MulBy(&m, &m2);
-  Gfx_LoadMatrix(MATRIX_VIEW, &m);
+  struct Matrix modelView =
+      MatrixFromMat4s(glms_mat4_mul(g_mat4HMDPose, c->pose));
+  Gfx_LoadMatrix(MATRIX_VIEW, &modelView);
 
   glBindVertexArray(c->glVertArray);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, c->glTexture);
-  glDrawElements(GL_TRIANGLES, c->unVertexCount, GL_UNSIGNED_SHORT, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, c->glVertBuffer);
+  Gfx_BindIb(c->glIndexBuffer);
+
+  glColor3f(0.0f, 0.0f, 0.0f);
+  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  glDrawElements(GL_TRIANGLES, c->model->unTriangleCount * 3, GL_UNSIGNED_SHORT,
+                 0);
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  Gfx_BindIb(Gfx_defaultIb);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
+
+  glBegin(GL_LINES);
+  glVertex3f(0, 0, 0);
+  glVertex3f(0, 0, -10);
+  glEnd();
 
   Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
 }
 
 void VR_RenderControllers(Hmd_Eye nEye) {
-  RenderController(nEye, &g_controllerLeft);
-  RenderController(nEye, &g_controllerRight);
+  if (g_controllerLeft.initialized)
+    RenderController(nEye, &g_controllerLeft);
+  if (g_controllerRight.initialized)
+    RenderController(nEye, &g_controllerRight);
 }
 
 void VR_RenderStereoTargets(void (*RenderScene)(Hmd_Eye nEye,

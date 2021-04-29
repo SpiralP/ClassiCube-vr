@@ -9,6 +9,14 @@
 #include "Game.h"
 #include "Logger.h"
 
+// static void check() {
+//   GLenum e = glGetError();
+//   if (e) {
+//     Logger_Abort2(e, "glGetError");
+//     return;
+//   }
+// }
+
 // ---------------------- global variables ------------------------
 struct FramebufferDesc {
   GLuint m_nDepthBufferId;
@@ -41,12 +49,10 @@ struct CGLM_ALIGN_MAT Controller {
   /* mDeviceToAbsoluteTracking */
   mat4s pose;
   RenderModel_t* model;
-  RenderModel_TextureMap_t* texture;
   GLuint glVertBuffer;
-  GLuint glIndexBuffer;
   GLuint glVertArray;
-  GLuint glTexture;
-  GLsizei unVertexCount;
+  GLuint glIndexBuffer;
+  bool initialized;
 };
 
 struct Controller g_controllerLeft = {0};
@@ -99,6 +105,17 @@ static struct Matrix MatrixFromMat4s(mat4s m) {
       m.m10, m.m11, m.m12, m.m13,  //
       m.m20, m.m21, m.m22, m.m23,  //
       m.m30, m.m31, m.m32, m.m33,  //
+  };
+
+  return m2;
+}
+
+static mat4s Mat4sFromMatrix(struct Matrix m) {
+  mat4s m2 = {
+      m.row1.X, m.row1.Y, m.row1.Z, m.row1.W,  //
+      m.row2.X, m.row2.Y, m.row2.Z, m.row2.W,  //
+      m.row3.X, m.row3.Y, m.row3.Z, m.row3.W,  //
+      m.row4.X, m.row4.Y, m.row4.Z, m.row4.W,  //
   };
 
   return m2;
@@ -230,32 +247,7 @@ static void InitController(struct Controller* c) {
                sizeof(uint16_t) * c->model->unTriangleCount * 3,
                c->model->rIndexData, GL_STATIC_DRAW);
 
-  glBindVertexArray(0);
-
-  // create and populate the texture
-  glGenTextures(1, &c->glTexture);
-  glBindTexture(GL_TEXTURE_2D, c->glTexture);
-
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, c->texture->unWidth,
-               c->texture->unHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-               c->texture->rubTextureMapData);
-
-  // If this renders black ask McJohn what's wrong.
-  glGenerateMipmap(GL_TEXTURE_2D);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR_MIPMAP_LINEAR);
-
-  GLfloat fLargest;
-  glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, fLargest);
-
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  c->unVertexCount = c->model->unTriangleCount * 3;
+  c->initialized = true;
 }
 
 static void UpdateController(struct Controller* controller) {
@@ -318,22 +310,7 @@ static void UpdateController(struct Controller* controller) {
         }
         controller->model = pModel;
 
-        RenderModel_TextureMap_t* pTexture;
-        while (1) {
-          modelError = g_pRenderModels->LoadTexture_Async(
-              pModel->diffuseTextureId, &pTexture);
-          if (modelError != EVRRenderModelError_VRRenderModelError_Loading) {
-            break;
-          }
-
-          Sleep(1);
-        }
-
-        if (modelError != EVRRenderModelError_VRRenderModelError_None) {
-          Logger_Abort2(modelError, "LoadRenderModel_Async");
-          return;
-        }
-        controller->texture = pTexture;
+        InitController(controller);
 
         Platform_Log1("%c OK", modelName);
       }
