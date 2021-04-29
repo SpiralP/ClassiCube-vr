@@ -35,7 +35,8 @@ static void PerspectiveCamera_GetView(struct Matrix* mat) {
 	Vec3 pos = Camera.CurrentPos;
 	Vec2 rot = Camera.Active->GetOrientation();
 	Matrix_LookRot(mat, pos, rot);
-	// Matrix_MulBy(mat, &Camera.TiltM);
+	Matrix_MulBy(mat, &Camera.TiltM);
+
 	struct Matrix vrView = VR_GetViewMatrix();
 	Matrix_MulBy(mat, &vrView);
 }
