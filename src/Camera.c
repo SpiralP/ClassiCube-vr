@@ -43,7 +43,9 @@ static void PerspectiveCamera_GetProjection(struct Matrix* proj, Hmd_Eye nEye) {
 static void PerspectiveCamera_GetView(struct Matrix* mat) {
 	struct Entity* p = &LocalPlayer_Instance.Base;
 	Vec3 pos = Camera.CurrentPos;
-	Vec2 rot = Camera.Active->GetOrientation();
+	Vec2 rot = mouseRot;
+	rot.X *= MATH_DEG2RAD; rot.Y *= MATH_DEG2RAD;
+
 	// don't want pitch
 	rot.Y = 0;
 	Matrix_LookRot(mat, pos, rot);
@@ -71,7 +73,6 @@ static void PerspectiveCamera_UpdateMouseRotation(double delta) {
 	glm_make_deg(&cur.x);
 	glm_make_deg(&cur.y);
 	glm_make_deg(&cur.z);
-	glms_vec3_print(cur, stdout);
 
 	if (Key_IsAltPressed() && Camera.Active->isThirdPerson) {
 		cam_rotOffset.X += mouseRot.X; cam_rotOffset.Y += mouseRot.Y;
@@ -79,7 +80,7 @@ static void PerspectiveCamera_UpdateMouseRotation(double delta) {
 	}
 	
 	yaw   = mouseRot.X + cur.y;
-	pitch = mouseRot.Y + cur.x;
+	pitch = cur.x;
 	
 	LocationUpdate_MakeOri(&update, yaw, pitch);
 
@@ -124,6 +125,11 @@ static void PerspectiveCamera_CalcViewBobbing(float t, float velTiltScale) {
 static Vec2 FirstPersonCamera_GetOrientation(void) {
 	Vec2 v = mouseRot;
 	v.X *= MATH_DEG2RAD; v.Y *= MATH_DEG2RAD;
+
+	vec3s vr = glms_euler_angles(g_mat4HMDPose);
+	v.X += vr.y;
+	v.Y += vr.x;
+
 	return v;
 }
 
@@ -157,6 +163,11 @@ static Vec2 ThirdPersonCamera_GetOrientation(void) {
 
 	v.X += cam_rotOffset.X * MATH_DEG2RAD; 
 	v.Y += cam_rotOffset.Y * MATH_DEG2RAD;
+
+	vec3s vr = glms_euler_angles(g_mat4HMDPose);
+	v.X += vr.y;
+	v.Y += vr.x;
+
 	return v;
 }
 
