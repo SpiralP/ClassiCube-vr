@@ -34,13 +34,15 @@ void VR_UpdateHMDMatrixPose() {
     if (g_rTrackedDevicePose[nDevice].bPoseIsValid) {
       g_rmat4DevicePose[nDevice] = Mat4sFromHmdMatrix34(
           g_rTrackedDevicePose[nDevice].mDeviceToAbsoluteTracking);
-      // Platform_Log1("%i", &nDevice, g_rTrackedDevicePose[nDevice]);
     }
   }
 
   if (g_rTrackedDevicePose[k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
     g_mat4HMDPose =
         glms_mat4_inv(g_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd]);
+
+    // mat4s a = g_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd];
+    // printf("%0.2f %0.2f %0.2f\n", a.m30, a.m31, a.m32);
   }
 }
 

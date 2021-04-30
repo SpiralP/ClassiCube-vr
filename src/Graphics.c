@@ -1586,8 +1586,6 @@ void Gfx_EndFrame(void) {
 
 	if (!GLContext_SwapBuffers()) Gfx_LoseContext("GLContext lost");
 
-	VR_UpdateHMDMatrixPose();
-
 	if (gfx_minFrameMs) LimitFPS();
 }
 

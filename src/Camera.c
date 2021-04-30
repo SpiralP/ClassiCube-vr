@@ -16,26 +16,37 @@ struct _CameraData Camera;
 static struct RayTracer cameraClipPos;
 static Vec2 cam_rotOffset;
 static cc_bool cam_isForwardThird;
-static float cam_deltaX, cam_deltaY;
+// entire mouse rotation in degrees
+Vec2 mouseRot;
+
+#define CAMERA_SENSI_FACTOR (0.0002f / 3.0f * MATH_RAD2DEG)
 
 static void Camera_OnRawMovement(float deltaX, float deltaY) {
-	cam_deltaX += deltaX; cam_deltaY += deltaY;
+	float sensitivity = CAMERA_SENSI_FACTOR * Camera.Sensitivity;
+	deltaX = deltaX * sensitivity;
+	deltaY = deltaY * sensitivity;
+	if (Camera.Invert) deltaY = -deltaY;
+
+	// TODO precision after a long time
+	mouseRot.X += deltaX;
+	mouseRot.Y += deltaY;
 }
 
 /*########################################################################################################################*
 *--------------------------------------------------Perspective camera-----------------------------------------------------*
 *#########################################################################################################################*/
-static void PerspectiveCamera_GetProjection(struct Matrix* proj) {
-	float fovy = Camera.Fov * MATH_DEG2RAD;
-	float aspectRatio = (float)Game.Width / (float)Game.Height;
-	Gfx_CalcPerspectiveMatrix(fovy, aspectRatio, (float)Game_ViewDistance, proj);
+static void PerspectiveCamera_GetProjection(struct Matrix* proj, Hmd_Eye nEye) {
+	// TODO maybe allow fov changes?
+	*proj = VR_GetProjectionMatrix(nEye);
 }
 
 static void PerspectiveCamera_GetView(struct Matrix* mat) {
+	struct Entity* p = &LocalPlayer_Instance.Base;
 	Vec3 pos = Camera.CurrentPos;
 	Vec2 rot = Camera.Active->GetOrientation();
+	// don't want pitch
+	rot.Y = 0;
 	Matrix_LookRot(mat, pos, rot);
-	Matrix_MulBy(mat, &Camera.TiltM);
 
 	struct Matrix vrView = VR_GetViewMatrix();
 	Matrix_MulBy(mat, &vrView);
@@ -49,50 +60,27 @@ static void PerspectiveCamera_GetPickedBlock(struct RayTracer* t) {
 	Picking_CalcPickedBlock(&eyePos, &dir, reach, t);
 }
 
-#define CAMERA_SENSI_FACTOR (0.0002f / 3.0f * MATH_RAD2DEG)
-
-static Vec2 PerspectiveCamera_GetMouseDelta(double delta) {
-	float sensitivity = CAMERA_SENSI_FACTOR * Camera.Sensitivity;
-	static float speedX, speedY, newSpeedX, newSpeedY, accelX, accelY;
-	Vec2 v;
-
-	if (Camera.Smooth) {
-		accelX = (cam_deltaX - speedX) * 35 / Camera.Mass;
-		accelY = (cam_deltaY - speedY) * 35 / Camera.Mass;
-		newSpeedX = accelX * (float)delta + speedX;
-		newSpeedY = accelY * (float)delta + speedY;
-
-		/* High acceleration means velocity overshoots the correct position on low FPS, */
-		/* causing wiggling. If newSpeed has opposite sign of speed, set speed to 0 */
-		if (newSpeedX * speedX < 0) speedX = 0;
-		else speedX = newSpeedX;
-		if (newSpeedY * speedY < 0) speedY = 0;
-		else speedY = newSpeedY;
-	} else {
-		speedX = cam_deltaX;
-		speedY = cam_deltaY;
-	}
-
-	v.X = speedX * sensitivity; v.Y = speedY * sensitivity;
-	if (Camera.Invert) v.Y = -v.Y;
-	return v;
-}
-
 static void PerspectiveCamera_UpdateMouseRotation(double delta) {
 	struct LocalPlayer* p = &LocalPlayer_Instance;
 	struct Entity* e      = &p->Base;
 
 	struct LocationUpdate update;
 	float yaw, pitch;
-	Vec2 rot = PerspectiveCamera_GetMouseDelta(delta);
+
+	vec3s cur = glms_euler_angles(g_mat4HMDPose);
+	glm_make_deg(&cur.x);
+	glm_make_deg(&cur.y);
+	glm_make_deg(&cur.z);
+	glms_vec3_print(cur, stdout);
 
 	if (Key_IsAltPressed() && Camera.Active->isThirdPerson) {
-		cam_rotOffset.X += rot.X; cam_rotOffset.Y += rot.Y;
+		cam_rotOffset.X += mouseRot.X; cam_rotOffset.Y += mouseRot.Y;
 		return;
 	}
 	
-	yaw   = p->Interp.Next.Yaw   + rot.X;
-	pitch = p->Interp.Next.Pitch + rot.Y;
+	yaw   = mouseRot.X + cur.y;
+	pitch = mouseRot.Y + cur.x;
+	
 	LocationUpdate_MakeOri(&update, yaw, pitch);
 
 	/* Need to make sure we don't cross the vertical axes, because that gets weird. */
@@ -105,8 +93,8 @@ static void PerspectiveCamera_UpdateMouseRotation(double delta) {
 static void PerspectiveCamera_UpdateMouse(double delta) {
 	if (!Gui.InputGrab && WindowInfo.Focused) Window_UpdateRawMouse();
 
+	VR_UpdateHMDMatrixPose();
 	PerspectiveCamera_UpdateMouseRotation(delta);
-	cam_deltaX = 0; cam_deltaY = 0;
 }
 
 static void PerspectiveCamera_CalcViewBobbing(float t, float velTiltScale) {
@@ -134,21 +122,14 @@ static void PerspectiveCamera_CalcViewBobbing(float t, float velTiltScale) {
 *---------------------------------------------------First person camera---------------------------------------------------*
 *#########################################################################################################################*/
 static Vec2 FirstPersonCamera_GetOrientation(void) {
-	struct Entity* p = &LocalPlayer_Instance.Base;
-	Vec2 v;	
-	v.X = p->Yaw * MATH_DEG2RAD; v.Y = p->Pitch * MATH_DEG2RAD;
+	Vec2 v = mouseRot;
+	v.X *= MATH_DEG2RAD; v.Y *= MATH_DEG2RAD;
 	return v;
 }
 
 static Vec3 FirstPersonCamera_GetPosition(float t) {
 	struct Entity* p = &LocalPlayer_Instance.Base;
-	Vec3 camPos   = Entity_GetEyePosition(p);
-	float yaw     = p->Yaw * MATH_DEG2RAD;
-	PerspectiveCamera_CalcViewBobbing(t, 1);
-	
-	camPos.Y += Camera.BobbingVer;
-	camPos.X += Camera.BobbingHor * (float)Math_Cos(yaw);
-	camPos.Z += Camera.BobbingHor * (float)Math_Sin(yaw);
+	Vec3 camPos   = p->Position;
 	return camPos;
 }
 
@@ -170,9 +151,8 @@ static struct Camera cam_FirstPerson = {
 static float dist_third = DEF_ZOOM, dist_forward = DEF_ZOOM;
 
 static Vec2 ThirdPersonCamera_GetOrientation(void) {
-	struct Entity* p = &LocalPlayer_Instance.Base;
-	Vec2 v;	
-	v.X = p->Yaw * MATH_DEG2RAD; v.Y = p->Pitch * MATH_DEG2RAD;
+	Vec2 v = mouseRot;
+	v.X *= MATH_DEG2RAD; v.Y *= MATH_DEG2RAD;
 	if (cam_isForwardThird) { v.X += MATH_PI; v.Y = -v.Y; }
 
 	v.X += cam_rotOffset.X * MATH_DEG2RAD; 
@@ -193,8 +173,7 @@ static Vec3 ThirdPersonCamera_GetPosition(float t) {
 	Vec3 target, dir;
 	Vec2 rot;
 
-	PerspectiveCamera_CalcViewBobbing(t, dist);
-	target = Entity_GetEyePosition(p);
+	target = p->Position;
 	target.Y += Camera.BobbingVer;
 
 	rot = Camera.Active->GetOrientation();
@@ -256,7 +235,7 @@ void Camera_CycleActive(void) {
 
 	/* reset rotation offset when changing cameras */
 	cam_rotOffset.X = 0.0f; cam_rotOffset.Y = 0.0f;
-	Camera_UpdateProjection();
+	Camera_UpdateProjection(EVREye_Eye_Left);
 }
 
 static struct Camera* cams_head;
@@ -283,11 +262,11 @@ void Camera_CheckFocus(void) {
 void Camera_SetFov(int fov) {
 	if (Camera.Fov == fov) return;
 	Camera.Fov = fov;
-	Camera_UpdateProjection();
+	Camera_UpdateProjection(EVREye_Eye_Left);
 }
 
-void Camera_UpdateProjection(void) {
-	Camera.Active->GetProjection(&Gfx.Projection);
+void Camera_UpdateProjection(Hmd_Eye nEye) {
+	Camera.Active->GetProjection(&Gfx.Projection, nEye);
 	Gfx_LoadMatrix(MATRIX_PROJECTION, &Gfx.Projection);
 	Event_RaiseVoid(&GfxEvents.ProjectionChanged);
 }
@@ -314,7 +293,7 @@ static void OnInit(void) {
 	Camera.DefaultFov  = Options_GetInt(OPT_FIELD_OF_VIEW, 1, 179, 70);
 	Camera.Fov         = Camera.DefaultFov;
 	Camera.ZoomFov     = Camera.DefaultFov;
-	Camera_UpdateProjection();
+	Camera_UpdateProjection(EVREye_Eye_Left);
 }
 
 struct IGameComponent Camera_Component = {

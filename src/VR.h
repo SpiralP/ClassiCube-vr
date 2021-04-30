@@ -6,6 +6,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+extern mat4s g_rmat4DevicePose[64 /* k_unMaxTrackedDeviceCount */];
+extern mat4s g_mat4HMDPose;
+
 /* sets up connection to steamvr, call once on app init */
 void VR_Setup();
 

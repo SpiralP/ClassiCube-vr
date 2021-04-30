@@ -151,7 +151,7 @@ void Game_SetViewDistance(int distance) {
 	Game_ViewDistance = distance;
 
 	Event_RaiseVoid(&GfxEvents.ViewDistanceChanged);
-	Camera_UpdateProjection();
+	Camera_UpdateProjection(EVREye_Eye_Left);
 }
 
 void Game_UserSetViewDistance(int distance) {
@@ -249,7 +249,7 @@ void Game_UpdateDimensions(void) {
 static void Game_OnResize(void* obj) {
 	Game_UpdateDimensions();
 	Gfx_OnWindowResize();
-	Camera_UpdateProjection();
+	Camera_UpdateProjection(EVREye_Eye_Left);
 }
 
 static void HandleOnNewMap(void* obj) {
@@ -556,10 +556,10 @@ static void RenderScene(Hmd_Eye nEye, double delta, float t) {
 	Gfx_SetDepthTest(true);
 
 	Camera.CurrentPos = Camera.Active->GetPosition(t);
-	Gfx.Projection = VR_GetProjectionMatrix(nEye);
-	UpdateViewMatrix();
 
-	Gfx_LoadMatrix(MATRIX_PROJECTION, &Gfx.Projection);
+	Camera_UpdateProjection(nEye);
+	
+	UpdateViewMatrix();
 	Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
 
 	if (!Gui_GetBlocksWorld()) {

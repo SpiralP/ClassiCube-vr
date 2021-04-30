@@ -1,6 +1,7 @@
 #ifndef CC_CAMERA_H
 #define CC_CAMERA_H
 #include "Vectors.h"
+#include "VR.h"
 
 /* Represents a camera, may be first or third person.
    Copyright 2014-2021 ClassiCube | Licensed under BSD-3
@@ -41,7 +42,7 @@ struct Camera {
 	cc_bool isThirdPerson;
 
 	/* Calculates the current projection matrix of this camera. */
-	void (*GetProjection)(struct Matrix* proj);
+	void (*GetProjection)(struct Matrix* proj, Hmd_Eye nEye);
 	/* Calculates the current modelview matrix of this camera. */
 	void (*GetView)(struct Matrix* view);
 
@@ -76,6 +77,6 @@ CC_API void Camera_Register(struct Camera* camera);
 /* Checks whether camera is still focused or not. */
 /* If focus changes, calls AcquireFocus or LoseFocus */
 void Camera_CheckFocus(void);
-void Camera_UpdateProjection(void);
+void Camera_UpdateProjection(Hmd_Eye nEye);
 void Camera_SetFov(int fov);
 #endif
