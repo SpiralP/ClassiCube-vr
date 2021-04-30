@@ -1,0 +1,80 @@
+{
+  "action_sets": [
+    {
+      "name": "/actions/main",
+      "usage": "leftright"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/main/in/hand_left",
+      "requirement": "mandatory",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/main/in/hand_right",
+      "requirement": "mandatory",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/main/out/haptic_hand_left",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/main/out/haptic_hand_right",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/main/in/place_block",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/main/in/delete_block",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/main/in/pick_block",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/main/in/walk_2_axis",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/main/in/turn_2_axis",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/main/in/jump",
+      "type": "boolean"
+    }
+  ],
+  "default_bindings": [
+    {
+      "binding_url": "system_generated_classicube_exe_binding_oculus_touch.json",
+      "controller_type": "oculus_touch"
+    },
+    {
+      "binding_url": "openvr_bindings_generic.json",
+      "controller_type": "generic"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en_us",
+
+      "/actions/main": "Main Action Set",
+
+      "/actions/main/in/hand_left": "Left Hand Pose",
+      "/actions/main/in/hand_right": "Right Hand Pose",
+      "/actions/main/out/haptic_hand_left": "Haptic Left",
+      "/actions/main/out/haptic_hand_right": "Haptic Right",
+      "/actions/main/in/place_block": "Place Block",
+      "/actions/main/in/delete_block": "Delete Block",
+      "/actions/main/in/pick_block": "Pick Block",
+      "/actions/main/in/walk_2_axis": "Walk 2-Axis",
+      "/actions/main/in/turn_2_axis": "Turn 2-Axis",
+      "/actions/main/in/jump": "Jump"
+    }
+  ]
+}

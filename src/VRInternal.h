@@ -6,8 +6,11 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "Event.h"
 #include "Game.h"
+#include "Input.h"
 #include "Logger.h"
+#include "VR.h"
 
 // static void check() {
 //   GLenum e = glGetError();
@@ -43,18 +46,16 @@ mat4s g_mat4eyePosRight;
 
 VRActionSetHandle_t g_actionSetMain;
 
-struct CGLM_ALIGN_MAT Controller {
-  VRActionHandle_t actionHandle;
-  char modelName[256];
-  /* mDeviceToAbsoluteTracking */
-  mat4s pose;
-  RenderModel_t* model;
-  GLuint glVertBuffer;
-  GLuint glVertArray;
-  GLuint glIndexBuffer;
-  bool initialized;
-};
+VRActionHandle_t g_actionPlaceBlock;
+VRActionHandle_t g_actionDeleteBlock;
+VRActionHandle_t g_actionPickBlock;
 
+VRActionHandle_t g_actionWalk2Axis;
+VRActionHandle_t g_actionTurn2Axis;
+VRActionHandle_t g_actionJump;
+
+VRActionHandle_t g_actionHapticHandLeft;
+VRActionHandle_t g_actionHapticHandRight;
 struct Controller g_controllerLeft = {0};
 struct Controller g_controllerRight = {0};
 
@@ -77,49 +78,6 @@ uint32_t VR_InitInternal2(EVRInitError* peError,
                           const char* pStartupInfo);
 bool VR_IsInterfaceVersionValid(const char* pchInterfaceVersion);
 const char* VR_GetStringForHmdError(EVRInitError error);
-
-// -------------------- matrix helpers ----------------------------
-static mat4s Mat4sFromHmdMatrix34(const HmdMatrix34_t m) {
-  mat4s m2 = {
-      m.m[0][0], m.m[1][0], m.m[2][0], 0.0,   //
-      m.m[0][1], m.m[1][1], m.m[2][1], 0.0,   //
-      m.m[0][2], m.m[1][2], m.m[2][2], 0.0,   //
-      m.m[0][3], m.m[1][3], m.m[2][3], 1.0f,  //
-  };
-  return m2;
-}
-
-static mat4s Mat4sFromHmdMatrix44(const HmdMatrix44_t m) {
-  mat4s m2 = {
-      m.m[0][0], m.m[1][0], m.m[2][0], m.m[3][0],  //
-      m.m[0][1], m.m[1][1], m.m[2][1], m.m[3][1],  //
-      m.m[0][2], m.m[1][2], m.m[2][2], m.m[3][2],  //
-      m.m[0][3], m.m[1][3], m.m[2][3], m.m[3][3],  //
-  };
-  return m2;
-}
-
-static struct Matrix MatrixFromMat4s(mat4s m) {
-  struct Matrix m2 = {
-      m.m00, m.m01, m.m02, m.m03,  //
-      m.m10, m.m11, m.m12, m.m13,  //
-      m.m20, m.m21, m.m22, m.m23,  //
-      m.m30, m.m31, m.m32, m.m33,  //
-  };
-
-  return m2;
-}
-
-static mat4s Mat4sFromMatrix(struct Matrix m) {
-  mat4s m2 = {
-      m.row1.X, m.row1.Y, m.row1.Z, m.row1.W,  //
-      m.row2.X, m.row2.Y, m.row2.Z, m.row2.W,  //
-      m.row3.X, m.row3.Y, m.row3.Z, m.row3.W,  //
-      m.row4.X, m.row4.Y, m.row4.Z, m.row4.W,  //
-  };
-
-  return m2;
-}
 
 // ----------------------------------------------------------------
 
@@ -213,6 +171,62 @@ static void SetupInput() {
                                          &g_controllerRight.actionHandle);
   if (inputError != EVRInputError_VRInputError_None) {
     Logger_Abort2(inputError, "GetActionHandle hand_right");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/haptic_hand_left",
+                                         &g_actionHapticHandLeft);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle haptic_hand_left");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/haptic_hand_right",
+                                         &g_actionHapticHandRight);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle haptic_hand_right");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/place_block",
+                                         &g_actionPlaceBlock);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle place_block");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/delete_block",
+                                         &g_actionDeleteBlock);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle delete_block");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/pick_block",
+                                         &g_actionPickBlock);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle pick_block");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/walk_2_axis",
+                                         &g_actionWalk2Axis);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle walk_2_axis");
+    return;
+  }
+
+  inputError = g_pInput->GetActionHandle("/actions/main/in/turn_2_axis",
+                                         &g_actionTurn2Axis);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle turn_2_axis");
+    return;
+  }
+
+  inputError =
+      g_pInput->GetActionHandle("/actions/main/in/jump", &g_actionJump);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetActionHandle jump");
     return;
   }
 }
@@ -318,6 +332,28 @@ static void UpdateController(struct Controller* controller) {
   }
 }
 
+static Vec2 VR_GetTurn2Axis() {
+  Vec2 v = {0};
+
+  struct InputAnalogActionData_t pActionData;
+  EVRInputError inputError;
+
+  inputError = g_pInput->GetAnalogActionData(g_actionTurn2Axis, &pActionData,
+                                             sizeof(pActionData),
+                                             k_ulInvalidInputValueHandle);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetDigitalActionData");
+    return v;
+  }
+
+  if (pActionData.bActive) {
+    v.X = pActionData.x;
+    v.Y = pActionData.y;
+  }
+
+  return v;
+}
+
 static void UpdateInput() {
   VRActiveActionSet_t actionSet = {0};
   actionSet.ulActionSet = g_actionSetMain;
@@ -330,4 +366,7 @@ static void UpdateInput() {
 
   UpdateController(&g_controllerLeft);
   UpdateController(&g_controllerRight);
+
+  Vec2 turn = VR_GetTurn2Axis();
+  Event_RaiseRawMove(&PointerEvents.RawMoved, turn.X * 10.0f, turn.Y * 10.0f);
 }

@@ -10,6 +10,7 @@
 #include "Entity.h"
 #include "Game.h"
 #include "Graphics.h"
+#include "Input.h"
 #include "Logger.h"
 #include "Platform.h"
 #include "String.h"
@@ -308,4 +309,62 @@ struct Matrix VR_GetProjectionMatrix(Hmd_Eye nEye) {
 
 void VR_Shutdown() {
   VR_ShutdownInternal();
+}
+
+cc_bool VR_IsPressed(KeyBind binding) {
+  struct InputDigitalActionData_t pActionData;
+  EVRInputError inputError;
+  VRActionHandle_t action;
+
+  switch (binding) {
+    case KEYBIND_DELETE_BLOCK:
+      action = g_actionDeleteBlock;
+      break;
+
+    case KEYBIND_PICK_BLOCK:
+      action = g_actionPickBlock;
+      break;
+
+    case KEYBIND_PLACE_BLOCK:
+      action = g_actionPlaceBlock;
+      break;
+
+    case KEYBIND_JUMP:
+      action = g_actionJump;
+      break;
+
+    default:
+      return false;
+  }
+
+  inputError = g_pInput->GetDigitalActionData(
+      action, &pActionData, sizeof(pActionData), k_ulInvalidInputValueHandle);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetDigitalActionData");
+    return false;
+  }
+
+  return pActionData.bActive && pActionData.bState;
+}
+
+Vec2 VR_GetWalk2Axis() {
+  Vec2 v = {0};
+
+  struct InputAnalogActionData_t pActionData;
+  EVRInputError inputError;
+
+  inputError = g_pInput->GetAnalogActionData(g_actionWalk2Axis, &pActionData,
+                                             sizeof(pActionData),
+                                             k_ulInvalidInputValueHandle);
+  if (inputError != EVRInputError_VRInputError_None) {
+    Logger_Abort2(inputError, "GetDigitalActionData");
+    return v;
+  }
+
+  if (pActionData.bActive) {
+    v.X = pActionData.x;
+    v.Y = pActionData.y;
+  }
+
+  return v;
 }

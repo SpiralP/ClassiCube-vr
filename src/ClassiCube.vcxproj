@@ -112,6 +112,14 @@
       <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;dbghelp.lib;Winmm.lib;crypt32.lib;ucrtd.lib;vcruntimed.lib;msvcrtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>.\glew\lib\Release\Win32;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>
+copy /Y ".\openvr\bin\win32\openvr_api.dll" "$(OutDir)"
+copy /Y ".\openvr\bin\win32\openvr_api.pdb" "$(OutDir)"
+copy /Y ".\glew\bin\Release\Win32\glew32.dll" "$(OutDir)"
+copy /Y ".\openvr_bindings\*.json" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -135,6 +143,14 @@
       <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;ucrtd.lib;vcruntimed.lib;msvcrtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>.\glew\lib\Release\x64;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>
+copy /Y ".\openvr\bin\win64\openvr_api.dll" "$(OutDir)"
+copy /Y ".\openvr\bin\win64\openvr_api.pdb" "$(OutDir)"
+copy /Y ".\glew\bin\Release\x64\glew32.dll" "$(OutDir)"
+copy /Y ".\openvr_bindings\*.json" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -167,6 +183,13 @@
       <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;libucrt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>.\glew\lib\Release\Win32;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>
+copy /Y ".\openvr\bin\win32\openvr_api.dll" "$(OutDir)"
+copy /Y ".\glew\bin\Release\Win32\glew32.dll" "$(OutDir)"
+copy /Y ".\openvr_bindings\*.json" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -197,6 +220,13 @@
       <AdditionalDependencies>glew32.lib;openvr_api.lib;d3d9.lib;opengl32.lib;ws2_32.lib;Wininet.lib;crypt32.lib;dbghelp.lib;Winmm.lib;libucrt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>.\glew\lib\Release\x64;.\openvr\lib\win64</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>
+copy /Y ".\openvr\bin\win64\openvr_api.dll" "$(OutDir)"
+copy /Y ".\glew\bin\Release\x64\glew32.dll" "$(OutDir)"
+copy /Y ".\openvr_bindings\*.json" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Animations.h" />

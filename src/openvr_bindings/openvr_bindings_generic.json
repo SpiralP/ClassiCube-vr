@@ -4,7 +4,16 @@
   "app_key": "system.generated.classicube.exe",
   "bindings": {
     "/actions/main": {
-      "haptics": [],
+      "haptics": [
+        {
+          "output": "/actions/main/out/haptic_hand_left",
+          "path": "/user/hand/left/output/haptic"
+        },
+        {
+          "output": "/actions/main/out/haptic_hand_right",
+          "path": "/user/hand/right/output/haptic"
+        }
+      ],
       "poses": [
         {
           "output": "/actions/main/in/hand_left",
@@ -15,7 +24,17 @@
           "path": "/user/hand/right/pose/raw"
         }
       ],
-      "sources": []
+      "sources": [
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/main/in/place_block"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/trigger"
+        }
+      ]
     }
   },
   "category": "steamvr_input",

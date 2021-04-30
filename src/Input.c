@@ -334,7 +334,9 @@ static const char* const keybindNames[KEYBIND_COUNT] = {
 	"DropBlock", "IDOverlay", "BreakableLiquids"
 };
 
-cc_bool KeyBind_IsPressed(KeyBind binding) { return Input_Pressed[KeyBinds[binding]]; }
+cc_bool KeyBind_IsPressed(KeyBind binding) {
+	return Input_Pressed[KeyBinds[binding]] || VR_IsPressed(binding);
+}
 
 static void KeyBind_Load(void) {
 	cc_string name; char nameBuffer[STRING_SIZE + 1];

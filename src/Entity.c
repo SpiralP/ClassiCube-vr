@@ -22,6 +22,7 @@
 #include "Options.h"
 #include "Errors.h"
 #include "Utils.h"
+#include "VR.h"
 
 const char* const NameMode_Names[NAME_MODE_COUNT]   = { "None", "Hovered", "All", "AllHovered", "AllUnscaled" };
 const char* const ShadowMode_Names[SHADOW_MODE_COUNT] = { "None", "SnapToBlock", "Circle", "CircleAll" };
@@ -905,6 +906,11 @@ static void LocalPlayer_CheckJumpVelocity(void* obj) {
 }
 
 static void LocalPlayer_GetMovement(float* xMoving, float* zMoving) {
+	Vec2 v = VR_GetWalk2Axis();
+
+	*xMoving += v.X;
+	*zMoving -= v.Y;
+
 	if (KeyBind_IsPressed(KEYBIND_FORWARD)) *zMoving -= 1;
 	if (KeyBind_IsPressed(KEYBIND_BACK))    *zMoving += 1;
 	if (KeyBind_IsPressed(KEYBIND_LEFT))    *xMoving -= 1;

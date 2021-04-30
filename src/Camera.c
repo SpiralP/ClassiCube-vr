@@ -54,10 +54,49 @@ static void PerspectiveCamera_GetView(struct Matrix* mat) {
 	Matrix_MulBy(mat, &vrView);
 }
 
+static vec3s ExtractCameraPos_NoScale(mat4s m)
+{
+	mat3s rotMat = {
+		m.m00, m.m01, m.m02,
+		m.m10, m.m11, m.m12,
+		m.m20, m.m21, m.m22,
+	};
+	vec3s d = glms_vec3(m.col[3]);
+
+	vec3s retVec = glms_mat3_mulv(rotMat, glms_vec3_negate(d));
+	return retVec;
+}
+
+
 static void PerspectiveCamera_GetPickedBlock(struct RayTracer* t) {
 	struct Entity* p = &LocalPlayer_Instance.Base;
-	Vec3 dir    = Vec3_GetDirVector(p->Yaw * MATH_DEG2RAD, p->Pitch * MATH_DEG2RAD);
-	Vec3 eyePos = Entity_GetEyePosition(p);
+
+	// struct Matrix viewMatrix;
+	// Camera.Active->GetView(&viewMatrix);
+
+	mat4s view = g_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd]; // Mat4sFromMatrix(viewMatrix);
+	if (g_controllerRight.initialized) {
+		view = g_controllerRight.pose;
+	}
+	vec3s pos = glms_vec3(view.col[3]);
+
+	pos.x += p->Position.X;
+	pos.y += p->Position.Y;
+	pos.z += p->Position.Z;
+
+	vec3s angle = glms_euler_angles(view);
+
+	angle.y = mouseRot.X * MATH_DEG2RAD - angle.y;
+	angle.x = -angle.x;
+
+    // printf("%0.2f\n", view.m33);
+	// glms_vec3_print(pos, stdout);
+	// glms_vec3_print(angle, stdout);
+
+
+	Vec3 dir    = Vec3_GetDirVector(angle.y, angle.x);
+	Vec3 eyePos = {pos.x, pos.y, pos.z};
+
 	float reach = LocalPlayer_Instance.ReachDistance;
 	Picking_CalcPickedBlock(&eyePos, &dir, reach, t);
 }
@@ -80,6 +119,7 @@ static void PerspectiveCamera_UpdateMouseRotation(double delta) {
 	}
 	
 	yaw   = mouseRot.X + cur.y;
+	// don't use pitch
 	pitch = cur.x;
 	
 	LocationUpdate_MakeOri(&update, yaw, pitch);
