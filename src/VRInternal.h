@@ -354,6 +354,18 @@ static Vec2 VR_GetTurn2Axis() {
   return v;
 }
 
+struct KeyBindToAction {
+  KeyBind keyBind;
+  VRActionHandle_t* action;
+};
+
+struct KeyBindToAction bindings[] = {
+    {KEYBIND_DELETE_BLOCK, &g_actionDeleteBlock},
+    {KEYBIND_PICK_BLOCK, &g_actionPickBlock},
+    {KEYBIND_PLACE_BLOCK, &g_actionPlaceBlock},
+    {KEYBIND_JUMP, &g_actionJump},
+};
+
 static void UpdateInput() {
   VRActiveActionSet_t actionSet = {0};
   actionSet.ulActionSet = g_actionSetMain;
@@ -369,4 +381,21 @@ static void UpdateInput() {
 
   Vec2 turn = VR_GetTurn2Axis();
   Event_RaiseRawMove(&PointerEvents.RawMoved, turn.X * 20.0f, turn.Y * 20.0f);
+
+  for (size_t i = 0; i < Array_Elems(bindings); i++) {
+    struct KeyBindToAction* keyBindToAction = &bindings[i];
+
+    struct InputDigitalActionData_t pActionData;
+    inputError = g_pInput->GetDigitalActionData(
+        *keyBindToAction->action, &pActionData, sizeof(pActionData),
+        k_ulInvalidInputValueHandle);
+    if (inputError != EVRInputError_VRInputError_None) {
+      Logger_Abort2(inputError, "GetDigitalActionData");
+      return;
+    }
+
+    if (pActionData.bActive && pActionData.bChanged) {
+      Input_Set(KeyBinds[keyBindToAction->keyBind], pActionData.bState);
+    }
+  }
 }

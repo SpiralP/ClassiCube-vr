@@ -8,6 +8,7 @@
 
 #include "Constants.h"
 #include "Entity.h"
+#include "Funcs.h"
 #include "Game.h"
 #include "Graphics.h"
 #include "Input.h"
@@ -316,25 +317,16 @@ cc_bool VR_IsPressed(KeyBind binding) {
   EVRInputError inputError;
   VRActionHandle_t action;
 
-  switch (binding) {
-    case KEYBIND_DELETE_BLOCK:
-      action = g_actionDeleteBlock;
-      break;
-
-    case KEYBIND_PICK_BLOCK:
-      action = g_actionPickBlock;
-      break;
-
-    case KEYBIND_PLACE_BLOCK:
-      action = g_actionPlaceBlock;
-      break;
-
-    case KEYBIND_JUMP:
-      action = g_actionJump;
-      break;
-
-    default:
-      return false;
+  cc_bool found = false;
+  for (size_t i = 0; i < Array_Elems(bindings); i++) {
+    struct KeyBindToAction* keyBindToAction = &bindings[i];
+    if (keyBindToAction->keyBind == binding) {
+      action = *keyBindToAction->action;
+      found = true;
+    }
+  }
+  if (!found) {
+    return false;
   }
 
   inputError = g_pInput->GetDigitalActionData(
