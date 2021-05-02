@@ -59,6 +59,36 @@ VRActionHandle_t g_actionHapticHandRight;
 struct Controller g_controllerLeft = {0};
 struct Controller g_controllerRight = {0};
 
+struct KeyBindToAction {
+  KeyBind keyBind;
+  VRActionHandle_t* action;
+};
+
+struct KeyBindToAction g_keyBindsToAction[] = {
+    {KEYBIND_DELETE_BLOCK, &g_actionDeleteBlock},
+    {KEYBIND_PICK_BLOCK, &g_actionPickBlock},
+    {KEYBIND_PLACE_BLOCK, &g_actionPlaceBlock},
+    {KEYBIND_JUMP, &g_actionJump},
+};
+
+struct ActionWithName {
+  char* path;
+  VRActionHandle_t* action;
+};
+
+struct ActionWithName g_actionsWithName[] = {
+    {"/actions/main/in/hand_left", &g_controllerLeft.actionHandle},
+    {"/actions/main/in/hand_right", &g_controllerRight.actionHandle},
+    {"/actions/main/in/haptic_hand_left", &g_actionHapticHandLeft},
+    {"/actions/main/in/haptic_hand_right", &g_actionHapticHandRight},
+    {"/actions/main/in/place_block", &g_actionPlaceBlock},
+    {"/actions/main/in/delete_block", &g_actionDeleteBlock},
+    {"/actions/main/in/pick_block", &g_actionPickBlock},
+    {"/actions/main/in/walk_2_axis", &g_actionWalk2Axis},
+    {"/actions/main/in/turn_2_axis", &g_actionTurn2Axis},
+    {"/actions/main/in/jump", &g_actionJump},
+};
+
 // --------------------- openvr exports ---------------------------
 intptr_t VR_InitInternal(EVRInitError* peError, EVRApplicationType eType);
 void VR_ShutdownInternal();
@@ -160,74 +190,18 @@ static void SetupInput() {
     return;
   }
 
-  inputError = g_pInput->GetActionHandle("/actions/main/in/hand_left",
-                                         &g_controllerLeft.actionHandle);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle hand_left");
-    return;
-  }
+  for (size_t i = 0; i < Array_Elems(g_actionsWithName); i++) {
+    struct ActionWithName* actionWithName = &g_actionsWithName[i];
 
-  inputError = g_pInput->GetActionHandle("/actions/main/in/hand_right",
-                                         &g_controllerRight.actionHandle);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle hand_right");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/haptic_hand_left",
-                                         &g_actionHapticHandLeft);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle haptic_hand_left");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/haptic_hand_right",
-                                         &g_actionHapticHandRight);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle haptic_hand_right");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/place_block",
-                                         &g_actionPlaceBlock);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle place_block");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/delete_block",
-                                         &g_actionDeleteBlock);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle delete_block");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/pick_block",
-                                         &g_actionPickBlock);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle pick_block");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/walk_2_axis",
-                                         &g_actionWalk2Axis);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle walk_2_axis");
-    return;
-  }
-
-  inputError = g_pInput->GetActionHandle("/actions/main/in/turn_2_axis",
-                                         &g_actionTurn2Axis);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle turn_2_axis");
-    return;
-  }
-
-  inputError =
-      g_pInput->GetActionHandle("/actions/main/in/jump", &g_actionJump);
-  if (inputError != EVRInputError_VRInputError_None) {
-    Logger_Abort2(inputError, "GetActionHandle jump");
-    return;
+    inputError =
+        g_pInput->GetActionHandle(actionWithName->path, actionWithName->action);
+    if (inputError != EVRInputError_VRInputError_None) {
+      char errorMessage[256];
+      snprintf(errorMessage, sizeof(errorMessage), "GetActionHandle: %s",
+               actionWithName->path);
+      Logger_Abort2(inputError, errorMessage);
+      return;
+    }
   }
 }
 
@@ -354,18 +328,6 @@ static Vec2 VR_GetTurn2Axis() {
   return v;
 }
 
-struct KeyBindToAction {
-  KeyBind keyBind;
-  VRActionHandle_t* action;
-};
-
-struct KeyBindToAction bindings[] = {
-    {KEYBIND_DELETE_BLOCK, &g_actionDeleteBlock},
-    {KEYBIND_PICK_BLOCK, &g_actionPickBlock},
-    {KEYBIND_PLACE_BLOCK, &g_actionPlaceBlock},
-    {KEYBIND_JUMP, &g_actionJump},
-};
-
 static void UpdateInput() {
   VRActiveActionSet_t actionSet = {0};
   actionSet.ulActionSet = g_actionSetMain;
@@ -382,8 +344,8 @@ static void UpdateInput() {
   Vec2 turn = VR_GetTurn2Axis();
   Event_RaiseRawMove(&PointerEvents.RawMoved, turn.X * 20.0f, turn.Y * 20.0f);
 
-  for (size_t i = 0; i < Array_Elems(bindings); i++) {
-    struct KeyBindToAction* keyBindToAction = &bindings[i];
+  for (size_t i = 0; i < Array_Elems(g_keyBindsToAction); i++) {
+    struct KeyBindToAction* keyBindToAction = &g_keyBindsToAction[i];
 
     struct InputDigitalActionData_t pActionData;
     inputError = g_pInput->GetDigitalActionData(

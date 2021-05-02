@@ -318,8 +318,8 @@ cc_bool VR_IsPressed(KeyBind binding) {
   VRActionHandle_t action;
 
   cc_bool found = false;
-  for (size_t i = 0; i < Array_Elems(bindings); i++) {
-    struct KeyBindToAction* keyBindToAction = &bindings[i];
+  for (size_t i = 0; i < Array_Elems(g_keyBindsToAction); i++) {
+    struct KeyBindToAction* keyBindToAction = &g_keyBindsToAction[i];
     if (keyBindToAction->keyBind == binding) {
       action = *keyBindToAction->action;
       found = true;
