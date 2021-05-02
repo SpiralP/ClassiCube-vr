@@ -224,7 +224,7 @@ static void RenderController(Hmd_Eye nEye, struct Controller* c) {
 
   glBegin(GL_LINES);
   glVertex3f(0, 0, 0);
-  glVertex3f(0, 0, -10);
+  glVertex3f(0, 0, -LocalPlayer_Instance.ReachDistance);
   glEnd();
 
   Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);

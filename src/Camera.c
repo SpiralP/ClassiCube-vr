@@ -54,51 +54,31 @@ static void PerspectiveCamera_GetView(struct Matrix* mat) {
 	Matrix_MulBy(mat, &vrView);
 }
 
-static vec3s ExtractCameraPos_NoScale(mat4s m)
-{
-	mat3s rotMat = {
-		m.m00, m.m01, m.m02,
-		m.m10, m.m11, m.m12,
-		m.m20, m.m21, m.m22,
-	};
-	vec3s d = glms_vec3(m.col[3]);
-
-	vec3s retVec = glms_mat3_mulv(rotMat, glms_vec3_negate(d));
-	return retVec;
-}
-
-
 static void PerspectiveCamera_GetPickedBlock(struct RayTracer* t) {
 	struct Entity* p = &LocalPlayer_Instance.Base;
 
-	// struct Matrix viewMatrix;
-	// Camera.Active->GetView(&viewMatrix);
+	vec3s translatePos = {p->Position.X, p->Position.Y, p->Position.Z};
+	mat4s translate = glms_translate_make(translatePos);
+	mat4s view = translate;
 
-	mat4s view = g_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd]; // Mat4sFromMatrix(viewMatrix);
+	vec3s axis = {0, -1.0f, 0};
+	mat4s rotate = glms_rotate_make(mouseRot.X * MATH_DEG2RAD, axis);
+	view = glms_mat4_mul(view, rotate);
+
+
 	if (g_controllerRight.initialized) {
-		view = g_controllerRight.pose;
+		view = glms_mat4_mul(view, g_controllerRight.pose);
+	} else {
+		// use headset
+		view = glms_mat4_mul(view, g_rmat4DevicePose[k_unTrackedDeviceIndex_Hmd]);
 	}
+
 	vec3s pos = glms_vec3(view.col[3]);
+	vec3s dir = glms_vec3_negate(glms_vec3_normalize(glms_vec3(view.col[2])));
 
-	pos.x += p->Position.X;
-	pos.y += p->Position.Y;
-	pos.z += p->Position.Z;
-
-	vec3s angle = glms_euler_angles(view);
-
-	angle.y = mouseRot.X * MATH_DEG2RAD - angle.y;
-	angle.x = -angle.x;
-
-    // printf("%0.2f\n", view.m33);
-	// glms_vec3_print(pos, stdout);
-	// glms_vec3_print(angle, stdout);
-
-
-	Vec3 dir    = Vec3_GetDirVector(angle.y, angle.x);
-	Vec3 eyePos = {pos.x, pos.y, pos.z};
-
-	float reach = LocalPlayer_Instance.ReachDistance;
-	Picking_CalcPickedBlock(&eyePos, &dir, reach, t);
+	Vec3 ccPos = {pos.x, pos.y, pos.z};
+	Vec3 ccDir = {dir.x, dir.y, dir.z};
+	Picking_CalcPickedBlock(&ccPos, &ccDir, LocalPlayer_Instance.ReachDistance, t);
 }
 
 static void PerspectiveCamera_UpdateMouseRotation(double delta) {

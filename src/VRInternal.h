@@ -368,5 +368,5 @@ static void UpdateInput() {
   UpdateController(&g_controllerRight);
 
   Vec2 turn = VR_GetTurn2Axis();
-  Event_RaiseRawMove(&PointerEvents.RawMoved, turn.X * 10.0f, turn.Y * 10.0f);
+  Event_RaiseRawMove(&PointerEvents.RawMoved, turn.X * 20.0f, turn.Y * 20.0f);
 }
