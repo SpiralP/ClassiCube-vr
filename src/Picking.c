@@ -165,6 +165,7 @@ static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir
 	RayTracer_Init(t, origin, dir);
 	/* Check if origin is at NaN (happens if player's position is at infinity) */
 	if (origin->X != origin->X || origin->Y != origin->Y || origin->Z != origin->Z) return false;
+	if (dir->X == 0 && dir->Y == 0 && dir->Z == 0) return false;
 
 	IVec3_Floor(&pOrigin, origin);
 	/* This used to be World_Contains(pOrigin.X, pOrigin.Y, pOrigin.Z), however */
